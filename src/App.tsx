@@ -208,7 +208,7 @@ export default function App() {
             {stats.map((s) => (
               <div key={s.day} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
                 <span style={{ width: 50, fontSize: 13 }}>
-                  {new Date(s.day).toLocaleDateString(undefined, { weekday: "short" })}
+                  {new Date(s.day).toLocaleDateString(undefined, { weekday: "short", timeZone: "UTC" })} 
                 </span>
                 <div style={{ height: 12, width: `${(s.sessions / maxSessions) * 100}%`, background: "#4f46e5", borderRadius: 4 }} />
                 <span style={{ fontSize: 13 }}>{s.sessions}</span>
