@@ -1,4 +1,13 @@
-export type SpriteKind = "slime" | "knight" | "mage" | "dragon" | "player" | "assistant" | "coordinator" | "coach" | "trophy";
+export type SpriteKind =
+  | "slime"
+  | "knight"
+  | "mage"
+  | "dragon"
+  | "player"
+  | "assistant"
+  | "coordinator"
+  | "coach"
+  | "trophy";
 const palette: Record<string, string> = {
   d: "#233f32",
   g: "#79a75a",
@@ -15,31 +24,68 @@ const palette: Record<string, string> = {
 };
 const sprites: Record<SpriteKind, string[]> = {
   mage: [
-    '........yd........', '.......dyyd.......', '......dyyyyd......',
-    '.....dyyyyyyd.....', '....dyyyyyyyyd....', '...dddddddddddd...',
-    '.....dssssssd.....', '.....dsdssdsd.....', '.....dssssssd.....',
-    '......dwwwwd......', '....ddgwwwwgdd....', '...dgggwwwwgggd...',
-    '..dgggggwwgggggd..', '..dssgggggggssgd..', '..dssdgggggdssgd..',
-    '...dddgggggdddd...', '.....dggggggd.....', '....dggggggggd....',
-    '...dggggggggggd...', '...dddddddddddd...',
+    "........yd........",
+    ".......dyyd.......",
+    "......dyyyyd......",
+    ".....dyyyyyyd.....",
+    "....dyyyyyyyyd....",
+    "...dddddddddddd...",
+    ".....dssssssd.....",
+    ".....dsdssdsd.....",
+    ".....dssssssd.....",
+    "......dwwwwd......",
+    "....ddgwwwwgdd....",
+    "...dgggwwwwgggd...",
+    "..dgggggwwgggggd..",
+    "..dssgggggggssgd..",
+    "..dssdgggggdssgd..",
+    "...dddgggggdddd...",
+    ".....dggggggd.....",
+    "....dggggggggd....",
+    "...dggggggggggd...",
+    "...dddddddddddd...",
   ],
   assistant: [
-    '......dddddd......', '.....dwwwwwwd.....', '....dwwwwwwwwdd...',
-    '....dddddddddddd..', '.....dssssssd.....', '.....dsdssdsd.....',
-    '.....dssssssd.....', '......dddddd......', '....ddggggggdd....',
-    '...dggggwgggggd...', '...dggggygggggd...', '...dssggggggssd...',
-    '...dssddyyyyddsd..', '....dddyywwyydsd..', '......dyyyyyydsd..',
-    '......dddddddddd..', '......dppdppd.....', '.....ddppdppdd....',
-    '.....ddddddddd....',
+    "......dddddd......",
+    ".....dwwwwwwd.....",
+    "....dwwwwwwwwdd...",
+    "....dddddddddddd..",
+    ".....dssssssd.....",
+    ".....dsdssdsd.....",
+    ".....dssssssd.....",
+    "......dddddd......",
+    "....ddggggggdd....",
+    "...dggggwgggggd...",
+    "...dggggygggggd...",
+    "...dssggggggssd...",
+    "...dssddyyyyddsd..",
+    "....dddyywwyydsd..",
+    "......dyyyyyydsd..",
+    "......dddddddddd..",
+    "......dppdppd.....",
+    ".....ddppdppdd....",
+    ".....ddddddddd....",
   ],
   coordinator: [
-    '......dddddd......', '.....dppppppd.....', '....dppppppppd....',
-    '...ddssssssssdd...', '...dadssssssdad...', '...dadsdssdsdad...',
-    '...daddssssddad...', '....ddssssddddd...', '......ddddddd.....',
-    '....ddbbbbbbdd....', '...dbbbbwbbbbbd...', '...dbbbbybbbbbd...',
-    '...dssbbbbbbssd...', '...dssdwwwwwdssd..', '....dddwdwdwddd...',
-    '......dwwwwwd.....', '......dppdppd.....', '.....ddppdppdd....',
-    '.....ddddddddd....',
+    "......dddddd......",
+    ".....dppppppd.....",
+    "....dppppppppd....",
+    "...ddssssssssdd...",
+    "...dadssssssdad...",
+    "...dadsdssdsdad...",
+    "...daddssssddad...",
+    "....ddssssddddd...",
+    "......ddddddd.....",
+    "....ddbbbbbbdd....",
+    "...dbbbbwbbbbbd...",
+    "...dbbbbybbbbbd...",
+    "...dssbbbbbbssd...",
+    "...dssdwwwwwdssd..",
+    "....dddwdwdwddd...",
+    "......dwwwwwd.....",
+    "......dppdppd.....",
+    ".....ddppdppdd....",
+    ".....ddddddddd....",
   ],
   slime: [
     "................",
@@ -150,13 +196,19 @@ const sprites: Record<SpriteKind, string[]> = {
     "...dddddddddd...",
   ],
 };
-export function PixelSprite({ kind, monochrome = false }: { kind: SpriteKind; monochrome?: boolean }) {
+export function PixelSprite({
+  kind,
+  monochrome = false,
+}: {
+  kind: SpriteKind;
+  monochrome?: boolean;
+}) {
   return (
     <svg
       className={`pixel-sprite sprite-${kind}`}
       width="128"
       height="128"
-      viewBox={`0 0 ${Math.max(...sprites[kind].map(row => row.length))} ${sprites[kind].length}`}
+      viewBox={`0 0 ${Math.max(...sprites[kind].map((row) => row.length))} ${sprites[kind].length}`}
       shapeRendering="crispEdges"
       aria-hidden="true"
     >
@@ -169,7 +221,15 @@ export function PixelSprite({ kind, monochrome = false }: { kind: SpriteKind; mo
               y={y}
               width="1"
               height="1"
-              fill={monochrome ? (pixel === 'd' ? '#f5f2e9' : ['b', 'g', 'o', 'p', 'r', 'k'].includes(pixel) ? '#71786c' : '#d9dfce') : (palette[pixel] ?? palette.d)}
+              fill={
+                monochrome
+                  ? pixel === "d"
+                    ? "#f5f2e9"
+                    : ["b", "g", "o", "p", "r", "k"].includes(pixel)
+                      ? "#71786c"
+                      : "#d9dfce"
+                  : (palette[pixel] ?? palette.d)
+              }
             />
           ),
         ),
