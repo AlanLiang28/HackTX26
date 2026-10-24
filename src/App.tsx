@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import CoachVoice from "./Coachvoice";
 
 // ---- Types: the shape of the data from the server ----
 type Mapping = { concept: string; analogy: string; explanation: string };
@@ -6,6 +7,7 @@ type QuizQuestion = { question: string; options: string[]; answer: number };
 type Content = {
   title: string;
   overview: string;
+  
   mappings: Mapping[];
   summary: string;
   quiz: QuizQuestion[];
@@ -146,6 +148,7 @@ export default function App() {
                 <h2 style={{ marginTop: 4 }}>{result.content.title}</h2>
                 <p>{result.content.overview}</p>
               </div>
+              <CoachVoice topic={result.topic} interest={result.interest} />
 
               {result.content.mappings.map((m, i) => (
                 <div key={i} style={{ ...card, borderLeft: "5px solid #4f46e5" }}>
@@ -154,6 +157,7 @@ export default function App() {
                   </div>
                   <p style={{ marginBottom: 0 }}>{m.explanation}</p>
                 </div>
+                
               ))}
 
               <div style={{ ...card, background: "#eef2ff" }}>

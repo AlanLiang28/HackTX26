@@ -4,11 +4,48 @@ import express from "express";
 import path from "node:path";
 import pg from "pg";
 import { GoogleGenAI } from "@google/genai";
-
+import { registerCoachRoute } from "./coach";
+import rateLimit from "express-rate-limit";
 process.loadEnvFile();
 
 const app = express();
 app.use(express.json());
+// ---- Abuse protection for the AI routes ----
+app.set("trust proxy", 1); // we're behind Caddy, so read the visitor's real IP
+
+const AI_ROUTES = ["/api/explain", "/api/coach", "/api/sessions"];
+
+// Per visitor: 5 AI requests per minute, 40 per day
+const perMinute = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 5,
+  message: { error: "Slow down! Wait a minute and try again." },
+});
+const perDay = rateLimit({
+  windowMs: 24 * 60 * 60 * 1000,
+  limit: 40,
+  message: { error: "You've hit today's limit. Come back tomorrow!" },
+});
+
+// Whole site: hard cap on AI calls per day, so costs can't run away
+let aiCallsToday = 0;
+let currentDay = new Date().toDateString();
+const MAX_AI_CALLS_PER_DAY = 300;
+
+app.post(AI_ROUTES, perMinute, perDay, (_req, res, next) => {
+  const today = new Date().toDateString();
+  if (today !== currentDay) {
+    currentDay = today;
+    aiCallsToday = 0;
+  }
+  if (aiCallsToday >= MAX_AI_CALLS_PER_DAY) {
+    res.status(503).json({ error: "The app hit its daily AI budget. Try again tomorrow." });
+    return;
+  }
+  aiCallsToday++;
+  next();
+});
+registerCoachRoute(app);
 
 // ---- Tiger Data ----
 const db = new pg.Pool({
