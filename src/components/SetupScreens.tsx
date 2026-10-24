@@ -69,7 +69,6 @@ export function WorldScreen({
           Enter {worlds[theme].name}
           <PixelIcon name="arrow" size={18} />
         </button>
-        <span>Just you, your notes, and a little adventure.</span>
       </div>
       <div className="journey-preview">
         <span>

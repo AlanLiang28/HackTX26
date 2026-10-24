@@ -11,21 +11,21 @@ npm run dev
 
 Open the local URL printed by Vite. **Try a demo adventure** runs the complete experience without a backend or API keys.
 
-For generated explanations from your own notes, also start the existing backend in another terminal:
+For adaptive adventures from your own notes, also start the backend in another terminal:
 
 ```sh
 npx tsx watch server.ts
 ```
 
-The backend requires the existing environment configuration and database setup. Vite proxies `/api` requests to `http://localhost:3001`. No backend files or secrets were changed for the frontend.
+The backend requires the existing environment configuration and database setup. Set `MODEL_API_KEY` (or `META_API_KEY`) for Meta Muse. `MUSE_MODEL` and `META_API_BASE` are optional overrides. Vite proxies `/api` requests to `http://localhost:3001`. Keep credentials in your local environment.
 
 ## Frontend flow
 
 1. **Your world:** a dedicated screen for choosing Sports or Fantasy, with artwork and a preview of the characters.
 2. **Your notes:** a separate screen for uploading TXT/Markdown or pasting up to 20,000 characters. The demo works without the backend.
 3. **Adventure trail:** meet each opponent in order, then unlock the boss. Cleared encounters stay cleared when you leave a conversation.
-4. **Character encounters:** each question has its own character. Read their typewriter dialogue, then choose an answer directly. One contextual action advances the conversation or retries a question. The small encounter menu contains lesson review, notes, and returning to the trail. Incorrect answers cost 4 HP, offer coaching, and allow a retry. At 0 HP, regroup on the trail and recover.
-5. **Boss:** speak or type an explanation, review it, and complete an explicit self-assessment. Opening notes does not erase the explanation.
+4. **Character encounters:** read the character's typewriter lesson, then choose an answer directly. Live quests have six encounters and three lives. Each answer updates topic proficiency, and missed concepts get priority in the next questions. Coaching explains the answer before you continue. Three misses end the run with a review and restart option. The offline demo keeps its original three questions, 4 HP penalty, and retries. The small encounter menu contains lesson review, notes, and returning to the trail.
+5. **Boss:** the live boss focuses on your weakest tested concept. Speak or type an explanation, review it, and complete an explicit self-assessment. Opening notes does not erase the explanation.
 6. **Victory:** see your first-attempt score, characters met, and questions worth reviewing. Play again or start a new adventure. Completed quests are saved on this device.
 
 Multiplayer is deferred. There are no party, team, or room controls in the current interface.
@@ -41,7 +41,14 @@ Character art is in `src/components/PixelSprite.tsx`; personalities and lesson a
 
 ## Backend handoff
 
-The frontend preserves `POST /api/explain` with `{ topic, interest, level }`. `interest` is derived exclusively from the two preset themes. It validates the returned session before rendering it. The expected response type and demo content are in `src/lib/study.ts`.
+The existing frontend now uses Joshua's `game-routes.ts` API through `src/lib/adaptive.ts`. The Sports/Fantasy choice supplies the preset theme; users cannot enter custom themes. The older `POST /api/explain`, history, and stats endpoints remain available. Joshua's standalone `Game.tsx` is retained as source but is not mounted in this frontend.
+
+- `POST /api/game/start` builds the lessons and question bank with one Muse call (malformed model output may trigger one retry). Only lessons and game metadata reach the browser initially.
+- `POST /api/game/:gameId/next` selects an unanswered question using smoothed proficiency `(correct + 1) / (attempts + 2)`. Weaker topics take priority, ties favor fewer attempts, and fresh questions are exhausted before repeats. Reopening an unanswered encounter returns the same question.
+- `POST /api/game/:gameId/answer` grades on the server, records topic performance, and returns the answer explanation. The frontend includes the question ID so retrying a failed network request does not deduct another life.
+- `POST /api/game/:gameId/restart` resets the run using the same pack, without another model call.
+
+Games are held in server memory, with stale games cleaned up when another game starts (three-hour threshold). Server restarts discard active runs. Quest history in this frontend remains local to the device.
 
 Backend-owned work still needed:
 
@@ -55,9 +62,10 @@ Speech recognition availability depends on the browser and microphone permission
 
 ```sh
 npm run build
+npm test
 ```
 
-This checks TypeScript and builds the frontend into `dist/`. The existing Express backend can serve that build.
+The build checks frontend TypeScript and produces `dist/`, which Express can serve. Tests exercise the actual game routes with deterministic model output, including performance-based selection, answer-key privacy, request retries, game-over, boss readiness, and restart. Tests do not call Meta or require real credentials or a database.
 
 ## Artwork and fonts
 

@@ -5,6 +5,7 @@ type Mapping = {
   explanation: string;
 };
 export type QuizQuestion = {
+  subtopic?: string;
   question: string;
   options: string[];
   answer: number;

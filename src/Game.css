@@ -1,0 +1,367 @@
+/* Battle mode. Everything is scoped under .g-root so it can't clash with the rest of the app.
+   --accent is set inline from the AI-chosen theme color. */
+.g-root {
+  --bg: #16141f;
+  --panel: #1f1c2e;
+  --ink: #f1eefb;
+  --muted: #b9b3d0;
+  --line: #3a3552;
+  --accent: #8b7cf6;
+
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 20px;
+  box-sizing: border-box;
+  background: var(--bg);
+  color: var(--ink);
+  border-radius: 18px;
+  text-align: left; /* index.css centers #root */
+  font-family: system-ui, "Segoe UI", Roboto, sans-serif;
+  font-size: 16px;
+  line-height: 1.45;
+  letter-spacing: 0;
+}
+
+.g-root h2,
+.g-root h3 {
+  color: var(--ink);
+  margin: 0;
+  font-family: inherit;
+  letter-spacing: 0;
+}
+.g-root h2 {
+  font-size: 22px;
+}
+.g-root h3 {
+  font-size: 18px;
+  font-weight: 600;
+}
+.g-root p {
+  margin: 0;
+}
+.g-root button {
+  font: inherit;
+  cursor: pointer;
+}
+.g-root button:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+.g-muted {
+  color: var(--muted);
+}
+
+/* ---- Top bar ---- */
+.g-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+.g-link {
+  background: none;
+  border: none;
+  color: var(--muted);
+  padding: 4px 0;
+  text-decoration: underline;
+}
+.g-lives {
+  display: flex;
+  gap: 4px;
+  font-size: 22px;
+}
+.g-heart-lost {
+  opacity: 0.55;
+}
+
+/* ---- Progress trail ---- */
+.g-trail {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+.g-pip {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 700;
+  flex: none;
+}
+.g-pip-win {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #111;
+}
+.g-pip-loss {
+  border-color: #ff8a96;
+  color: #ff8a96;
+}
+.g-pip-now {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.g-pip-boss {
+  margin-left: auto;
+  width: 34px;
+  height: 34px;
+  font-size: 18px;
+  border-style: dashed;
+}
+
+/* ---- Arena ---- */
+.g-arena {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 18px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left: 5px solid var(--accent);
+  border-radius: 14px;
+  margin-bottom: 18px;
+}
+.g-enemy {
+  font-size: 72px;
+  line-height: 1;
+  width: 104px;
+  height: 104px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--bg);
+  border: 2px solid color-mix(in srgb, var(--accent) 60%, transparent);
+  transition: transform 0.5s, opacity 0.5s;
+}
+.g-taunt {
+  color: var(--muted);
+  font-style: italic;
+  margin: 2px 0 8px;
+}
+.g-chip {
+  display: inline-block;
+  padding: 2px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.g-win .g-enemy {
+  transform: scale(0.7) rotate(-14deg);
+  opacity: 0.35;
+}
+.g-lose {
+  animation: g-shake 0.4s;
+}
+@keyframes g-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-8px); }
+  40% { transform: translateX(8px); }
+  60% { transform: translateX(-5px); }
+  80% { transform: translateX(5px); }
+}
+
+/* ---- Question + options ---- */
+.g-question {
+  margin-bottom: 12px;
+}
+.g-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.g-opt {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  padding: 12px 14px;
+  color: var(--ink);
+  background: var(--panel);
+  border: 2px solid var(--line);
+  border-radius: 10px;
+}
+.g-opt:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+.g-opt:disabled {
+  cursor: default;
+}
+.g-letter {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  background: var(--bg);
+  font-weight: 700;
+  font-size: 14px;
+}
+.g-opt-text {
+  flex: 1;
+}
+.g-opt-pending {
+  border-color: var(--accent);
+}
+.g-opt-right {
+  background: #17402a;
+  border-color: #5fd48a;
+}
+.g-opt-wrong {
+  background: #4a1d27;
+  border-color: #ff8a96;
+}
+.g-opt-dim {
+  opacity: 0.55;
+}
+
+/* ---- Feedback ---- */
+.g-feedback {
+  margin-top: 16px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+}
+.g-feedback p {
+  margin: 6px 0 12px;
+  color: var(--muted);
+}
+.g-feedback-win {
+  border-color: #5fd48a;
+}
+.g-feedback-lose {
+  border-color: #ff8a96;
+}
+.g-error {
+  margin-top: 12px;
+  color: #ff8a96;
+}
+
+/* ---- Buttons ---- */
+.g-btn {
+  padding: 11px 18px;
+  border-radius: 10px;
+  border: 2px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+}
+.g-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+.g-btn-primary {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--bg);
+  font-weight: 600;
+}
+.g-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.g-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+/* ---- Centered states (loading, end screens) ---- */
+.g-center {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 0 18px;
+}
+.g-boss {
+  font-size: 84px;
+  line-height: 1;
+}
+.g-spinner {
+  width: 34px;
+  height: 34px;
+  border: 4px solid var(--line);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: g-spin 0.9s linear infinite;
+}
+@keyframes g-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ---- Proficiency report ---- */
+.g-report {
+  padding: 16px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+.g-report h3 {
+  margin-bottom: 12px;
+}
+.g-row {
+  margin-bottom: 12px;
+}
+.g-row:last-child {
+  margin-bottom: 0;
+}
+.g-row-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 15px;
+  margin-bottom: 4px;
+}
+.g-bar {
+  height: 10px;
+  background: var(--bg);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.g-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 999px;
+}
+.g-badge {
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid #ff8a96;
+  color: #ff8a96;
+  font-size: 12px;
+}
+.g-callout {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-left: 4px solid var(--accent);
+  background: var(--panel);
+  border-radius: 6px;
+}
+
+@media (max-width: 520px) {
+  .g-arena {
+    flex-direction: column;
+    text-align: center;
+  }
+  .g-row-head {
+    flex-direction: column;
+    gap: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .g-root *,
+  .g-root *::before {
+    animation: none !important;
+    transition: none !important;
+  }
+}

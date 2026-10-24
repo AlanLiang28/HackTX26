@@ -25,11 +25,16 @@ export function BossChallenge({
   session,
   onComplete,
   onProgress,
+  focus,
 }: {
   session: StudySession;
   onComplete: () => void;
   onProgress: (checks: number) => void;
+  focus?: string;
 }) {
+  const mappings = [...session.content.mappings].sort(
+    (a, b) => Number(b.concept === focus) - Number(a.concept === focus),
+  );
   const [text, setText] = useState("");
   const [recording, setRecording] = useState(false);
   const [seconds, setSeconds] = useState(0);
@@ -115,8 +120,10 @@ export function BossChallenge({
     <section className="boss-challenge" aria-label="Boss explanation challenge">
       <div className="boss-practice-label">PRACTICE BOSS · SELF-ASSESSED</div>
       <p className="boss-prompt">
-        <span>*</span> Explain the main idea. Connect two concepts. Give me an
-        example.
+        <span>*</span>{" "}
+        {focus
+          ? `Explain ${focus}. Connect it to another concept and give me an example.`
+          : "Explain the main idea. Connect two concepts. Give me an example."}
       </p>
       {!review ? (
         <>
@@ -178,8 +185,10 @@ export function BossChallenge({
             your self-assessment; AI grading is not connected yet.
           </p>
           {[
-            "I explained the main idea accurately.",
-            `I connected concepts such as “${session.content.mappings[0].concept}” and “${session.content.mappings[Math.min(1, session.content.mappings.length - 1)].concept}”.`,
+            focus
+              ? `I explained ${focus} accurately.`
+              : "I explained the main idea accurately.",
+            `I connected concepts such as “${mappings[0].concept}” and “${mappings[Math.min(1, mappings.length - 1)].concept}”.`,
             "I gave an example and explained why it fits.",
           ].map((criterion, index) => (
             <label className="boss-check" key={index}>

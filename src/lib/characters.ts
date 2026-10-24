@@ -144,6 +144,15 @@ export function getLessonLines(
       "Use your own words. Explain the main idea, connect two concepts, and give an example that shows why it works.",
     ];
   const mappings = session.content.mappings;
+  const subtopic = session.content.quiz[index]?.subtopic;
+  if (subtopic) {
+    const mapping = mappings.find((item) => item.concept === subtopic);
+    if (mapping)
+      return [
+        `${mapping.concept}. Think of it as ${mapping.analogy}.`,
+        mapping.explanation,
+      ];
+  }
   const count = session.content.quiz.length;
   const start = Math.floor((index * mappings.length) / count);
   const end = Math.floor(((index + 1) * mappings.length) / count);

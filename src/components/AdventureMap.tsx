@@ -10,6 +10,9 @@ export function AdventureMap({
   demo,
   onEnter,
   onNotes,
+  busy = false,
+  error = "",
+  outcomes,
 }: {
   theme: Theme;
   session: StudySession;
@@ -17,6 +20,9 @@ export function AdventureMap({
   demo: boolean;
   onEnter: (index: number) => void;
   onNotes: () => void;
+  busy?: boolean;
+  error?: string;
+  outcomes?: boolean[];
 }) {
   const total = session.content.quiz.length;
   const next = getCharacter(theme, completed, completed === total);
@@ -58,6 +64,7 @@ export function AdventureMap({
                 : index === completed
                   ? "current"
                   : "locked";
+            const missed = state === "cleared" && outcomes?.[index] === false;
             return (
               <div
                 className={`trail-stop ${state} ${boss ? "boss-stop" : ""}`}
@@ -65,7 +72,7 @@ export function AdventureMap({
               >
                 <span className="trail-number">
                   {state === "cleared" ? (
-                    <PixelIcon name="check" size={15} />
+                    <PixelIcon name={missed ? "book" : "check"} size={15} />
                   ) : boss ? (
                     <PixelIcon name="crown" size={17} />
                   ) : (
@@ -84,7 +91,9 @@ export function AdventureMap({
                   <h3>{character.name}</h3>
                   <p>
                     {state === "cleared"
-                      ? "A lesson learned. A new friend made."
+                      ? missed
+                        ? "A lesson worth revisiting."
+                        : "A lesson learned. A new friend made."
                       : character.role.toLowerCase()}
                   </p>
                 </div>
@@ -93,12 +102,17 @@ export function AdventureMap({
                     className="trail-enter"
                     onClick={() => onEnter(index)}
                     aria-label={`Meet ${character.name}`}
+                    disabled={busy}
                   >
                     <PixelIcon name="arrow" size={20} />
                   </button>
                 ) : (
                   <span className="trail-status">
-                    {state === "cleared" ? "CLEARED" : "UP NEXT"}
+                    {state === "cleared"
+                      ? missed
+                        ? "REVISIT"
+                        : "CLEARED"
+                      : "UP NEXT"}
                   </span>
                 )}
               </div>
@@ -114,11 +128,21 @@ export function AdventureMap({
         </div>
         <button
           className="primary-button full-width"
+          disabled={busy}
           onClick={() => onEnter(completed)}
         >
-          {completed === 0 ? `Meet ${next.name}` : `Continue to ${next.name}`}
+          {busy
+            ? "Preparing encounter…"
+            : completed === 0
+              ? `Meet ${next.name}`
+              : `Continue to ${next.name}`}
           <PixelIcon name={completed === total ? "crown" : "arrow"} size={18} />
         </button>
+        {error && (
+          <p className="error-feedback" role="alert">
+            {error}
+          </p>
+        )}
       </section>
       <button className="text-button below-back" onClick={onNotes}>
         <PixelIcon name="book" size={16} />
