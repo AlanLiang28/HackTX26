@@ -4,6 +4,8 @@ import express from "express";
 import path from "node:path";
 import pg from "pg";
 import { GoogleGenAI } from "@google/genai";
+import OpenAI from "openai";
+import { bossRouter } from "./boss.ts";
 
 process.loadEnvFile();
 
@@ -19,6 +21,11 @@ const db = new pg.Pool({
 // ---- Gemini ----
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 const MODEL = process.env.GEMINI_MODEL ?? "gemini-3.5-flash";
+
+// ---- Muse (Meta) ---- null until the team has a key; LLM calls fall back to Gemini.
+const muse = process.env.META_API_KEY
+  ? new OpenAI({ apiKey: process.env.META_API_KEY, baseURL: "https://api.meta.ai/v1" })
+  : null;
 
 function buildPrompt(topic: string, interest: string, level: string) {
   return `You are a friendly tutor who explains things using analogies from the student's interests.
@@ -94,6 +101,9 @@ app.get("/api/stats", async (_req, res) => {
   `);
   res.json(result.rows);
 });
+
+// ---- Part 3: boss fight (must stay above the static site + catch-all) ----
+app.use(bossRouter({ db, ai, muse }));
 
 // ---- Serve the built React site (after `npm run build`) ----
 app.use(express.static(path.resolve("dist")));
