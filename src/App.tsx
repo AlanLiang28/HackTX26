@@ -1,234 +1,125 @@
 import { useEffect, useRef, useState } from "react";
-import type { DragEvent, FormEvent, ReactNode } from "react";
+import type { FormEvent } from "react";
 import { PixelIcon } from "./components/PixelIcon";
 import { PixelSprite } from "./components/PixelSprite";
+import { WorldScreen, MaterialsScreen } from "./components/SetupScreens";
+import { AdventureMap } from "./components/AdventureMap";
+import { Encounter } from "./components/Encounter";
+import { Modal } from "./components/Modal";
 import {
   getDemoSession,
   isStudySession,
   readQuestLog,
   saveQuest,
 } from "./lib/study";
+import { getCharacter, worlds } from "./lib/characters";
 import type { QuestRecord, StudySession, Theme } from "./lib/study";
 import "./App.css";
-type Screen = "setup" | "learn" | "battle" | "results";
-type Overlay = "help" | "history" | "leave" | null;
-type RecognitionEvent = {
-  results: ArrayLike<
-    ArrayLike<{
-      transcript: string;
-    }> & {
-      isFinal: boolean;
-    }
-  >;
-};
-type Recognition = {
-  lang: string;
-  continuous: boolean;
-  interimResults: boolean;
-  onresult: ((event: RecognitionEvent) => void) | null;
-  onerror: ((event: { error: string }) => void) | null;
-  onend: (() => void) | null;
-  start: () => void;
-  stop: () => void;
-  abort: () => void;
-};
-type SpeechWindow = Window & {
-  SpeechRecognition?: new () => Recognition;
-  webkitSpeechRecognition?: new () => Recognition;
-};
-const stages = ["Prepare", "Learn", "Battle", "Victory"];
-const themeDetails = {
-  fantasy: {
-    name: "Fantasy",
-    subtitle: "A little magic. A lot of knowledge.",
-    tag: "THE ENCHANTED REALM",
-    book: "Your spellbook",
-    enemies: ["Moss Slime", "Castle Knight", "Arcane Mage"],
-    boss: "The Lorekeeper",
-    location: "THE EVERGREEN KINGDOM",
-  },
-  sports: {
-    name: "Sports",
-    subtitle: "Big plays start with big ideas.",
-    tag: "THE HOME FIELD",
-    book: "Your playbook",
-    enemies: ["The Teammate", "Position Coach", "Offensive Coordinator"],
-    boss: "The Head Coach",
-    location: "THE HOME-FIELD STADIUM",
-  },
-};
-function Modal({
-  children,
-  title,
-  onClose,
-}: {
-  children: ReactNode;
-  title: string;
-  onClose: () => void;
-}) {
-  const dialog = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    dialog.current?.showModal();
-  }, []);
-  return (
-    <dialog
-      ref={dialog}
-      className="modal pixel-panel"
-      aria-label={title}
-      onClose={onClose}
-      onClick={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
-    >
-      <div className="modal-heading">
-        <h2>{title}</h2>
-        <button
-          className="icon-button"
-          aria-label="Close dialog"
-          onClick={onClose}
-        >
-          <PixelIcon name="close" />
-        </button>
-      </div>
-      {children}
-    </dialog>
-  );
-}
+
+type Screen = "world" | "materials" | "journey" | "battle" | "results";
+type Overlay = "help" | "history" | "notes" | "leave" | "home" | null;
+const setupScreens: Screen[] = ["world", "materials"];
+const navSteps = ["Your world", "Your notes", "Your adventure"];
+
 export default function App() {
+  const [screen, setScreen] = useState<Screen>("world");
   const [theme, setTheme] = useState<Theme>("fantasy");
-  const [screen, setScreen] = useState<Screen>("setup");
   const [notes, setNotes] = useState("");
-  const [materialTab, setMaterialTab] = useState<"upload" | "paste">("upload");
   const [filename, setFilename] = useState("");
-  const [fileLoading, setFileLoading] = useState(false);
-  const [dragging, setDragging] = useState(false);
-  const [mode, setMode] = useState<"solo" | "team">("solo");
-  const [playerNames, setPlayerNames] = useState("Player 1, Player 2");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [session, setSession] = useState<StudySession | null>(null);
-  const [isDemo, setIsDemo] = useState(false);
+  const [demo, setDemo] = useState(false);
+  const [completed, setCompleted] = useState(0);
+  const [encounter, setEncounter] = useState(0);
+  const [answers, setAnswers] = useState<Record<number, number>>({});
+  const [hp, setHp] = useState(20);
   const [overlay, setOverlay] = useState<Overlay>(null);
   const [sound, setSound] = useState(false);
   const [log, setLog] = useState<QuestRecord[]>(readQuestLog);
-  const [conceptIndex, setConceptIndex] = useState(0);
-  const [encounter, setEncounter] = useState(0);
-  const [answers, setAnswers] = useState<Record<number, number>>({});
-  const [picked, setPicked] = useState<number | null>(null);
-  const [checked, setChecked] = useState(false);
-  const [explanation, setExplanation] = useState("");
-  const [recording, setRecording] = useState(false);
-  const [recordSeconds, setRecordSeconds] = useState(0);
-  const [speechError, setSpeechError] = useState("");
-  const [bossReview, setBossReview] = useState(false);
-  const [criteria, setCriteria] = useState<boolean[]>([false, false, false]);
-  const [bossPlayer, setBossPlayer] = useState(0);
-  const [completedPlayers, setCompletedPlayers] = useState<string[]>([]);
-  const fileInput = useRef<HTMLInputElement>(null);
-  const recognition = useRef<Recognition | null>(null);
   const audio = useRef<AudioContext | null>(null);
-  const controller = useRef<AbortController | null>(null);
-  const details = themeDetails[theme];
-  const players =
-    mode === "team"
-      ? playerNames
-          .split(",")
-          .map((name) => name.trim())
-          .filter(Boolean)
-          .slice(0, 4)
-      : ["You"];
-  const currentStage =
-    stages[["setup", "learn", "battle", "results"].indexOf(screen)];
-  const quiz = session?.content.quiz ?? [];
-  const isBoss = encounter >= quiz.length;
-  const question = quiz[encounter];
-  const correct = quiz.filter((q, index) => answers[index] === q.answer).length;
-  const mapping = session?.content.mappings[conceptIndex];
-  const words = explanation.trim().split(/\s+/).filter(Boolean).length;
-  const activePlayer =
-    players[isBoss ? bossPlayer : encounter % players.length] ?? "You";
-  useEffect(() => {
-    if (!recording) return;
-    const timer = window.setInterval(
-      () => setRecordSeconds((seconds) => seconds + 1),
-      1000,
-    );
-    return () => window.clearInterval(timer);
-  }, [recording]);
+  const request = useRef<AbortController | null>(null);
+  const saved = useRef(false);
+  const main = useRef<HTMLElement>(null);
+  const activeStep = screen === "world" ? 0 : screen === "materials" ? 1 : 2;
+  const correct =
+    session?.content.quiz.filter(
+      (question, index) => answers[index] === question.answer,
+    ).length ?? 0;
+
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "instant" });
+    main.current?.focus({ preventScroll: true });
   }, [screen, encounter]);
   useEffect(
     () => () => {
-      recognition.current?.abort();
-      controller.current?.abort();
+      request.current?.abort();
       void audio.current?.close();
     },
     [],
   );
+
   function chime(enabled = sound) {
     if (!enabled) return;
     try {
       audio.current ??= new AudioContext();
       const context = audio.current;
       void context.resume();
-      const oscillator = context.createOscillator();
-      const gain = context.createGain();
-      oscillator.type = "square";
-      oscillator.frequency.setValueAtTime(523.25, context.currentTime);
-      oscillator.frequency.setValueAtTime(783.99, context.currentTime + 0.07);
-      gain.gain.setValueAtTime(0.025, context.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, context.currentTime + 0.18);
-      oscillator.connect(gain).connect(context.destination);
-      oscillator.start();
-      oscillator.stop(context.currentTime + 0.18);
+      const tone = context.createOscillator();
+      const volume = context.createGain();
+      tone.type = "square";
+      tone.frequency.setValueAtTime(523.25, context.currentTime);
+      tone.frequency.setValueAtTime(783.99, context.currentTime + 0.07);
+      volume.gain.setValueAtTime(0.025, context.currentTime);
+      volume.gain.exponentialRampToValueAtTime(
+        0.001,
+        context.currentTime + 0.18,
+      );
+      tone.connect(volume).connect(context.destination);
+      tone.start();
+      tone.stop(context.currentTime + 0.18);
     } catch {
-      /* Sound is optional. */
+      /* Audio is optional. */
     }
   }
-  function resetAdventure() {
-    recognition.current?.abort();
-    setRecording(false);
-    setConceptIndex(0);
+  function beginSession(next: StudySession, isDemo: boolean) {
+    setSession(next);
+    setDemo(isDemo);
+    setCompleted(0);
     setEncounter(0);
     setAnswers({});
-    setPicked(null);
-    setChecked(false);
-    setExplanation("");
-    setBossReview(false);
-    setCriteria([false, false, false]);
+    setHp(20);
     setError("");
-    setBossPlayer(0);
-    setCompletedPlayers([]);
-    setSpeechError("");
-    setRecordSeconds(0);
+    saved.current = false;
+    setScreen("journey");
+    chime();
   }
-  async function loadFile(file?: File) {
-    if (!file) return;
+  function goHome() {
+    setOverlay(null);
+    setScreen("world");
+    setError("");
+  }
+
+  async function loadFile(file: File) {
     setError("");
     if (!/\.(txt|md)$/i.test(file.name)) {
       setError(
-        "Choose a TXT or Markdown file. For a PDF or slides, paste the text instead.",
+        "Choose a TXT or Markdown file. For PDFs or slides, paste the text instead.",
       );
       return;
     }
     if (file.size > 1024 * 1024) {
-      setError(
-        "That file is a little big. Choose a file under 1 MB, or paste a shorter section.",
-      );
+      setError("Choose a file under 1 MB, or paste a shorter excerpt.");
       return;
     }
-    setFileLoading(true);
     try {
       const content = await file.text();
       if (!content.trim())
         throw new Error(
-          "This file is empty. Try another file or paste your notes.",
+          "That file is empty. Choose another file or paste your notes.",
         );
       if (content.length > 20000)
-        throw new Error(
-          "Choose a shorter excerpt, up to 20,000 characters, so the lesson stays focused.",
-        );
+        throw new Error("Choose a shorter excerpt, up to 20,000 characters.");
       setNotes(content);
       setFilename(file.name);
     } catch (err) {
@@ -237,59 +128,21 @@ export default function App() {
           ? err.message
           : "Could not read that file. Please try again.",
       );
-    } finally {
-      setFileLoading(false);
     }
   }
-  function onDrop(event: DragEvent<HTMLButtonElement>) {
+  async function createQuest(event: FormEvent) {
     event.preventDefault();
-    setDragging(false);
-    void loadFile(event.dataTransfer.files[0]);
-  }
-  function validatePlayers() {
-    if (
-      mode === "team" &&
-      playerNames
-        .split(",")
-        .map((name) => name.trim())
-        .filter(Boolean).length > 4
-    ) {
-      setError("This party has room for up to four players.");
-      return false;
-    }
-    if (mode === "team" && players.length < 2) {
-      setError("Add at least two player names, separated by commas.");
-      return false;
-    }
-    if (
-      mode === "team" &&
-      new Set(players.map((name) => name.toLowerCase())).size !== players.length
-    ) {
-      setError("Give each teammate a different name so everyone gets a turn.");
-      return false;
-    }
-    return true;
-  }
-  function startDemo() {
-    if (!validatePlayers()) return;
-    resetAdventure();
-    setSession(getDemoSession(theme));
-    setIsDemo(true);
-    setScreen("learn");
-    chime();
-  }
-  async function startAdventure(event: FormEvent) {
-    event.preventDefault();
-    if (!notes.trim() || loading || !validatePlayers()) return;
-    resetAdventure();
+    if (loading || !notes.trim()) return;
+    setError("");
     setLoading(true);
-    controller.current = new AbortController();
-    const timeout = window.setTimeout(() => controller.current?.abort(), 60000);
+    const controller = new AbortController();
+    request.current = controller;
+    const timeout = window.setTimeout(() => controller.abort(), 60000);
     try {
       const response = await fetch("/api/explain", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        signal: controller.current.signal,
+        signal: controller.signal,
         body: JSON.stringify({
           topic: notes.trim(),
           interest:
@@ -305,123 +158,62 @@ export default function App() {
           "Your adventure could not be created. Try again, or explore the demo below.",
         );
       if (!isStudySession(data))
-        throw new Error(
-          "The lesson came back incomplete. Try again to build a fresh adventure.",
-        );
-      setSession(data);
-      setIsDemo(false);
-      setScreen("learn");
-      chime();
+        throw new Error("The lesson came back incomplete. Please try again.");
+      beginSession(data, false);
     } catch (err) {
       setError(
         err instanceof Error && err.name === "AbortError"
-          ? "This is taking longer than expected. Please try again, or explore the demo."
+          ? "This is taking longer than expected. Try again, or explore the demo."
           : err instanceof Error
             ? err.message
-            : "Could not connect. Please try again, or explore the demo.",
+            : "Could not connect. Try again, or explore the demo.",
       );
     } finally {
       window.clearTimeout(timeout);
-      controller.current = null;
+      request.current = null;
       setLoading(false);
     }
   }
-  function checkAnswer() {
-    if (picked === null || !question) return;
-    setAnswers((previous) => ({ ...previous, [encounter]: picked }));
-    setChecked(true);
-    if (picked === question.answer) chime();
-  }
-  function nextEncounter() {
-    setEncounter((index) => index + 1);
-    setPicked(null);
-    setChecked(false);
-  }
-  function startRecording() {
-    if (recording) {
-      recognition.current?.stop();
-      setRecording(false);
+  function enterEncounter(index: number) {
+    if (!session || index !== completed || index > session.content.quiz.length)
       return;
-    }
-    const SpeechRecognition =
-      (window as SpeechWindow).SpeechRecognition ??
-      (window as SpeechWindow).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      setSpeechError(
-        "Voice transcription is not available in this browser. Type your explanation below, or try Chrome.",
-      );
-      return;
-    }
-    try {
-      const listener = new SpeechRecognition();
-      listener.lang = "en-US";
-      listener.continuous = true;
-      listener.interimResults = false;
-      listener.onresult = (event) => {
-        const transcript = Array.from(event.results)
-          .filter((result) => result.isFinal)
-          .map((result) => result[0].transcript)
-          .join(" ");
-        setExplanation(
-          [explanation.trim(), transcript].filter(Boolean).join(" "),
-        );
-      };
-      listener.onerror = (event) => {
-        setSpeechError(
-          event.error === "not-allowed"
-            ? "Microphone access was declined. You can still type your explanation below."
-            : "The microphone could not capture your voice. Try again or type below.",
-        );
-        setRecording(false);
-      };
-      listener.onend = () => setRecording(false);
-      recognition.current = listener;
-      setSpeechError("");
-      setRecordSeconds(0);
-      listener.start();
-      setRecording(true);
-    } catch {
-      setSpeechError(
-        "Could not start the microphone. You can type your explanation below.",
-      );
-      setRecording(false);
-    }
+    setEncounter(index);
+    setScreen("battle");
+    chime();
+  }
+  function recordAnswer(answer: number) {
+    setAnswers((previous) =>
+      previous[encounter] === undefined
+        ? { ...previous, [encounter]: answer }
+        : previous,
+    );
   }
   function finishQuest() {
-    if (mode === "team" && bossPlayer < players.length - 1) {
-      setCompletedPlayers((previous) => [...previous, activePlayer]);
-      setBossPlayer((index) => index + 1);
-      setExplanation("");
-      setCriteria([false, false, false]);
-      setBossReview(false);
-      setRecordSeconds(0);
-      return;
-    }
+    if (!session || saved.current) return;
+    saved.current = true;
     const record: QuestRecord = {
       id: crypto.randomUUID(),
-      title: session?.content.title ?? "Study adventure",
+      title: session.content.title,
       theme,
       score: correct,
-      total: quiz.length,
+      total: session.content.quiz.length,
       completedAt: new Date().toISOString(),
-      players: players.length,
-      demo: isDemo,
+      players: 1,
+      demo,
     };
     setLog(saveQuest(record));
+    setCompleted(session.content.quiz.length + 1);
     setScreen("results");
     chime();
   }
-  function returnToSetup() {
-    resetAdventure();
-    setScreen("setup");
-    setOverlay(null);
-  }
+
   return (
-    <div className={`app theme-${theme}`}>
+    <div
+      className={`app theme-${theme} ${screen === "battle" ? "in-combat" : ""}`}
+    >
       <div className="world-background" aria-hidden="true" />
       <div className="world-wash" aria-hidden="true" />
       <div className="ambient-pixels" aria-hidden="true">
-        <i />
         <i />
         <i />
         <i />
@@ -431,10 +223,11 @@ export default function App() {
         <button
           className="brand"
           aria-label="StudyRaid home"
+          disabled={loading}
           onClick={() =>
-            screen === "setup" || screen === "results"
-              ? returnToSetup()
-              : setOverlay("leave")
+            setupScreens.includes(screen) || screen === "results"
+              ? goHome()
+              : setOverlay("home")
           }
         >
           <span className="brand-mark">
@@ -446,21 +239,21 @@ export default function App() {
           </span>
         </button>
         <nav className="step-nav" aria-label="Adventure progress">
-          {stages.map((stage, index) => (
+          {navSteps.map((step, index) => (
             <span
-              key={stage}
-              className={`nav-step ${currentStage === stage ? "active" : ""} ${stages.indexOf(currentStage) > index ? "complete" : ""}`}
-              aria-current={currentStage === stage ? "step" : undefined}
+              className={`nav-step ${index === activeStep ? "active" : ""} ${index < activeStep ? "complete" : ""}`}
+              key={step}
+              aria-current={index === activeStep ? "step" : undefined}
             >
               <span className="step-number">
-                {stages.indexOf(currentStage) > index ? (
+                {index < activeStep ? (
                   <PixelIcon name="check" size={12} />
                 ) : (
                   `0${index + 1}`
                 )}
               </span>
-              <span>{stage}</span>
-              {index < stages.length - 1 && <span className="step-connector" />}
+              <span>{step}</span>
+              {index < 2 && <i />}
             </span>
           ))}
         </nav>
@@ -485,790 +278,163 @@ export default function App() {
             <PixelIcon name={sound ? "sound" : "mute"} size={19} />
           </button>
           <button
-            className="icon-button quest-log-button"
+            className="icon-button"
             aria-label="Open quest log"
             onClick={() => setOverlay("history")}
           >
-            <PixelIcon name="book" size={19} />
+            <PixelIcon name="book" size={18} />
           </button>
         </div>
       </header>
-      <main className={`main-content screen-${screen}`}>
-        {screen === "setup" && (
+
+      <main
+        ref={main}
+        tabIndex={-1}
+        className={`main-content screen-${screen}`}
+      >
+        {screen === "world" && (
+          <WorldScreen
+            theme={theme}
+            onChoose={(next) => {
+              setTheme(next);
+              chime();
+            }}
+            onContinue={() => {
+              setScreen("materials");
+              chime();
+            }}
+          />
+        )}
+        {screen === "materials" && (
+          <MaterialsScreen
+            theme={theme}
+            notes={notes}
+            filename={filename}
+            loading={loading}
+            error={error}
+            onNotes={(value) => {
+              setNotes(value);
+              setFilename("");
+              setError("");
+            }}
+            onFile={loadFile}
+            onSubmit={createQuest}
+            onDemo={() => beginSession(getDemoSession(theme), true)}
+            onBack={() => setScreen("world")}
+          />
+        )}
+        {screen === "journey" && session && (
+          <AdventureMap
+            theme={theme}
+            session={session}
+            completed={completed}
+            demo={demo}
+            onEnter={enterEncounter}
+            onNotes={() => setOverlay("notes")}
+          />
+        )}
+        {screen === "battle" && session && (
+          <Encounter
+            key={`${theme}-${encounter}`}
+            theme={theme}
+            session={session}
+            index={encounter}
+            hp={hp}
+            onAnswer={recordAnswer}
+            onPass={() => {
+              setCompleted((value) => Math.max(value, encounter + 1));
+              chime();
+            }}
+            onMistake={() => setHp((value) => Math.max(0, value - 4))}
+            onContinue={() => setScreen("journey")}
+            onLeave={() => setOverlay("leave")}
+            onRegroup={() => {
+              setHp(20);
+              setScreen("journey");
+            }}
+            onNotes={() => setOverlay("notes")}
+            onFinish={finishQuest}
+          />
+        )}
+        {screen === "results" && session && (
           <>
             <div className="page-intro">
               <div className="eyebrow">
-                <span className="tiny-spark">✦</span>A NEW WAY TO LEVEL UP
-                <span className="tiny-spark">✦</span>
-              </div>
-              <h1>
-                Small lessons.
-                <br />
-                <span>Legendary adventures.</span>
-              </h1>
-              <p>Your notes. Your world. Your next big breakthrough.</p>
-            </div>
-            <form className="setup-panel pixel-panel" onSubmit={startAdventure}>
-              <section className="form-section world-section">
-                <div className="section-heading">
-                  <label>Choose your world</label>
-                  <span className="section-aside">
-                    Two worlds. Endless discoveries.
-                  </span>
-                </div>
-                <div className="theme-grid">
-                  {(["sports", "fantasy"] as Theme[]).map((option) => (
-                    <button
-                      type="button"
-                      key={option}
-                      className={`theme-card ${theme === option ? "selected" : ""}`}
-                      aria-pressed={theme === option}
-                      onClick={() => {
-                        setTheme(option);
-                        chime();
-                      }}
-                    >
-                      <span className={`theme-card-art art-${option}`}>
-                        <span className="world-label">
-                          {themeDetails[option].tag}
-                        </span>
-                        <span className="selection-indicator">
-                          {theme === option && (
-                            <PixelIcon name="check" size={12} />
-                          )}
-                        </span>
-                      </span>
-                      <span className="theme-card-caption">
-                        <span className="theme-card-name">
-                          <PixelIcon
-                            name={option === "sports" ? "football" : "sword"}
-                            size={18}
-                          />
-                          {themeDetails[option].name}
-                        </span>
-                        <span className="theme-card-subtitle">
-                          {themeDetails[option].subtitle}
-                        </span>
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </section>
-              <section className="form-section material-section">
-                <div className="section-heading">
-                  <label
-                    htmlFor={
-                      materialTab === "paste" ? "study-notes" : "study-file"
-                    }
-                  >
-                    Bring your study material
-                  </label>
-                  <div
-                    className="material-tabs"
-                    role="group"
-                    aria-label="Study material input method"
-                  >
-                    <button
-                      type="button"
-                      className={materialTab === "upload" ? "active" : ""}
-                      onClick={() => setMaterialTab("upload")}
-                    >
-                      Upload
-                    </button>
-                    <button
-                      type="button"
-                      className={materialTab === "paste" ? "active" : ""}
-                      onClick={() => setMaterialTab("paste")}
-                    >
-                      Paste text
-                    </button>
-                  </div>
-                </div>
-                <input
-                  id="study-file"
-                  ref={fileInput}
-                  className="visually-hidden"
-                  tabIndex={-1}
-                  type="file"
-                  accept=".txt,.md,text/plain,text/markdown"
-                  onChange={(event) => {
-                    void loadFile(event.target.files?.[0]);
-                    event.target.value = "";
-                  }}
-                />
-                {materialTab === "upload" ? (
-                  <button
-                    type="button"
-                    className={`upload-zone ${dragging ? "dragging" : ""} ${notes.trim() ? "has-file" : ""}`}
-                    onClick={() => fileInput.current?.click()}
-                    onDragOver={(event) => {
-                      event.preventDefault();
-                      setDragging(true);
-                    }}
-                    onDragLeave={() => setDragging(false)}
-                    onDrop={onDrop}
-                    disabled={fileLoading || loading}
-                  >
-                    <span className="upload-icon">
-                      <PixelIcon
-                        name={notes.trim() ? "file" : "upload"}
-                        size={24}
-                      />
-                    </span>
-                    <span>
-                      <strong>
-                        {fileLoading
-                          ? "Reading your notes…"
-                          : filename ||
-                            (notes.trim()
-                              ? "Your pasted notes are ready"
-                              : "Drop your notes here, or browse files")}
-                      </strong>
-                      <small>
-                        {notes.trim()
-                          ? `${notes.length.toLocaleString()} characters · click to replace`
-                          : "TXT or Markdown · up to 20,000 characters"}
-                      </small>
-                    </span>
-                    {notes.trim() && <PixelIcon name="check" size={19} />}
-                  </button>
-                ) : (
-                  <div className="notes-wrapper">
-                    <textarea
-                      id="study-notes"
-                      value={notes}
-                      maxLength={20000}
-                      onChange={(event) => {
-                        setNotes(event.target.value);
-                        setFilename("");
-                        setError("");
-                      }}
-                      placeholder="Paste your notes, a tricky concept, or the chapter you want to conquer…"
-                      rows={3}
-                    />
-                    <span className="character-count">
-                      {notes.length.toLocaleString()} / 20,000 characters
-                    </span>
-                  </div>
-                )}
-              </section>
-              <section className="form-section party-section">
-                <div className="section-heading">
-                  <label>Pick your party</label>
-                  <span className="section-aside">
-                    Every adventure starts somewhere.
-                  </span>
-                </div>
-                <div className="party-options">
-                  <button
-                    type="button"
-                    className={`party-option ${mode === "solo" ? "selected" : ""}`}
-                    aria-pressed={mode === "solo"}
-                    onClick={() => setMode("solo")}
-                  >
-                    <PixelIcon name="person" size={19} />
-                    <span>Solo adventure</span>
-                    <span className="radio-indicator" />
-                  </button>
-                  <button
-                    type="button"
-                    className={`party-option ${mode === "team" ? "selected" : ""}`}
-                    aria-pressed={mode === "team"}
-                    onClick={() => setMode("team")}
-                  >
-                    <PixelIcon name="team" size={21} />
-                    <span>Team up</span>
-                    <span className="radio-indicator" />
-                  </button>
-                </div>
-                {mode === "team" && (
-                  <div className="team-setup">
-                    <label htmlFor="player-names">
-                      Your party<span>2–4 names, separated by commas</span>
-                    </label>
-                    <input
-                      id="player-names"
-                      value={playerNames}
-                      maxLength={120}
-                      onChange={(event) => setPlayerNames(event.target.value)}
-                      placeholder="Alex, Sam"
-                    />
-                    <small>
-                      <PixelIcon name="team" size={13} />
-                      Local co-op · take turns on this device.
-                    </small>
-                  </div>
-                )}
-              </section>
-              {error && (
-                <div className="feedback error-feedback" role="alert">
-                  <PixelIcon name="help" size={18} />
-                  <span>{error}</span>
-                </div>
-              )}
-              <button
-                className="primary-button start-button"
-                type="submit"
-                disabled={loading || fileLoading || !notes.trim()}
-              >
-                {loading ? (
-                  <>
-                    <span className="pixel-spinner" />
-                    Building your adventure…
-                  </>
-                ) : (
-                  <>
-                    <PixelIcon name="sword" size={19} />
-                    Start adventure
-                    <PixelIcon name="arrow" size={19} />
-                  </>
-                )}
-              </button>
-              <p className="demo-link">
-                Just looking around?{" "}
-                <button type="button" onClick={startDemo} disabled={loading}>
-                  Try a demo adventure <span aria-hidden="true">↗</span>
-                </button>
-              </p>
-            </form>
-            <div className="journey-preview">
-              <span>
-                <PixelIcon name="book" size={15} />
-                Learn the concept
-              </span>
-              <span className="journey-arrow">···</span>
-              <span>
-                <PixelIcon name="sword" size={15} />
-                Battle your way up
-              </span>
-              <span className="journey-arrow">···</span>
-              <span>
-                <PixelIcon name="crown" size={17} />
-                Teach the boss
-              </span>
-            </div>
-          </>
-        )}
-
-        {screen === "learn" && session && (
-          <>
-            <div className="page-intro compact-intro">
-              <div className="eyebrow">
-                <PixelIcon name="book" size={15} />
-                {details.book.toUpperCase()}
-                {isDemo && <span className="small-badge">DEMO QUEST</span>}
-              </div>
-              <h1>
-                Know the lore.
-                <br />
-                <span>Then own the battle.</span>
-              </h1>
-              <p>A familiar world. A whole new way to understand.</p>
-            </div>
-            <div className="lesson-panel pixel-panel">
-              <div className="lesson-title">
-                <span className="subject-label">YOUR QUEST</span>
-                <h2>{session.content.title}</h2>
-                <p>{session.content.overview}</p>
-              </div>
-              {mapping && (
-                <div className="concept-card" key={conceptIndex}>
-                  <div className="concept-topline">
-                    <span className="subject-label">
-                      CONCEPT {String(conceptIndex + 1).padStart(2, "0")}
-                    </span>
-                    <span>
-                      {conceptIndex + 1} / {session.content.mappings.length}
-                    </span>
-                  </div>
-                  <h3>{mapping.concept}</h3>
-                  <div className="analogy-label">
-                    <PixelIcon
-                      name={theme === "fantasy" ? "spark" : "football"}
-                      size={19}
-                    />
-                    <span>
-                      Think of it as <strong>{mapping.analogy}</strong>
-                    </span>
-                  </div>
-                  <p>{mapping.explanation}</p>
-                  <div className="concept-navigation">
-                    <button
-                      className="text-button"
-                      disabled={conceptIndex === 0}
-                      onClick={() => setConceptIndex((index) => index - 1)}
-                    >
-                      <PixelIcon name="arrowLeft" size={16} />
-                      Previous
-                    </button>
-                    <div
-                      className="concept-dots"
-                      aria-label="Concept selection"
-                    >
-                      {session.content.mappings.map((item, index) => (
-                        <button
-                          key={index}
-                          className={index === conceptIndex ? "active" : ""}
-                          aria-label={`Concept ${index + 1}: ${item.concept}`}
-                          aria-pressed={index === conceptIndex}
-                          onClick={() => setConceptIndex(index)}
-                        />
-                      ))}
-                    </div>
-                    <button
-                      className="text-button"
-                      disabled={
-                        conceptIndex === session.content.mappings.length - 1
-                      }
-                      onClick={() => setConceptIndex((index) => index + 1)}
-                    >
-                      Next
-                      <PixelIcon name="arrow" size={16} />
-                    </button>
-                  </div>
-                </div>
-              )}
-              <details className="lesson-detail">
-                <summary>
-                  The big picture
-                  <PixelIcon name="plus" size={14} />
-                </summary>
-                <p>{session.content.summary}</p>
-              </details>
-              <details className="lesson-detail">
-                <summary>
-                  Where the analogy stops
-                  <PixelIcon name="plus" size={14} />
-                </summary>
-                <p>
-                  {session.content.limitation ??
-                    "The characters and setting help illustrate the idea. They do not replace the actual definition. In your answer, explain the real concept and the relationships between its parts, even when the story leaves details out."}
-                </p>
-              </details>
-              <div className="lesson-actions">
-                <button
-                  className="text-button"
-                  onClick={() => setOverlay("leave")}
-                >
-                  <PixelIcon name="arrowLeft" size={16} />
-                  Back to camp
-                </button>
-                <button
-                  className="primary-button"
-                  onClick={() => {
-                    setScreen("battle");
-                    chime();
-                  }}
-                >
-                  Enter battle
-                  <PixelIcon name="sword" size={18} />
-                </button>
-              </div>
-            </div>
-            <p className="under-panel-note">
-              <PixelIcon name="heart" size={13} />
-              Take your time. Understanding is your strongest weapon.
-            </p>
-          </>
-        )}
-
-        {screen === "battle" && session && (
-          <>
-            <div className="battle-topline">
-              <button
-                className="text-button"
-                onClick={() => {
-                  recognition.current?.abort();
-                  setRecording(false);
-                  setScreen("learn");
-                }}
-              >
-                <PixelIcon name="arrowLeft" size={16} />
-                {details.book}
-              </button>
-              <span className="small-badge">
-                {mode === "team"
-                  ? `${activePlayer.toUpperCase()}'S TURN`
-                  : "SOLO ADVENTURE"}
-                {isDemo ? " · DEMO" : ""}
-              </span>
-            </div>
-            <div className="battle-progress" aria-label="Battle encounters">
-              {Array.from({ length: quiz.length + 1 }, (_, index) => (
-                <div
-                  key={index}
-                  className={`encounter-node ${encounter === index ? "current" : ""} ${encounter > index ? "defeated" : ""}`}
-                >
-                  <span>
-                    {encounter > index ? (
-                      <PixelIcon name="check" size={15} />
-                    ) : (
-                      <PixelIcon
-                        name={index === quiz.length ? "crown" : "sword"}
-                        size={16}
-                      />
-                    )}
-                  </span>
-                  <small>
-                    {index === quiz.length ? "BOSS" : `0${index + 1}`}
-                  </small>
-                </div>
-              ))}
-            </div>
-            <div
-              className={`battle-panel pixel-panel ${isBoss ? "boss-panel" : ""}`}
-            >
-              <div className="enemy-area">
-                <div className="enemy-title">
-                  <span className="subject-label">
-                    {isBoss
-                      ? "THE FINAL CHALLENGE"
-                      : `ENCOUNTER ${encounter + 1}`}
-                  </span>
-                  <h1>
-                    {isBoss
-                      ? details.boss
-                      : details.enemies[encounter % details.enemies.length]}
-                  </h1>
-                </div>
-                <div
-                  className={`sprite-stage ${checked && picked === question?.answer ? "enemy-defeated" : ""}`}
-                >
-                  <PixelSprite
-                    kind={
-                      theme === "sports"
-                        ? isBoss
-                          ? "coach"
-                          : "player"
-                        : isBoss
-                          ? "dragon"
-                          : encounter === 0
-                            ? "slime"
-                            : "knight"
-                    }
-                  />
-                  <span className="sprite-shadow" />
-                </div>
-                <div className="enemy-health" aria-label="Opponent health">
-                  <span
-                    style={{
-                      width: isBoss
-                        ? `${100 - (criteria.filter(Boolean).length / 3) * 100}%`
-                        : checked && picked === question?.answer
-                          ? "0%"
-                          : "100%",
-                    }}
-                  />
-                </div>
-                <span className="enemy-caption">
-                  {isBoss
-                    ? "Your explanation is your final move."
-                    : "A little practice goes a long way."}
-                </span>
-              </div>
-              {!isBoss && question && (
-                <div className="question-area">
-                  <p className="question-text">{question.question}</p>
-                  <div className="answer-options">
-                    {question.options.map((option, index) => (
-                      <button
-                        key={index}
-                        className={`answer-option ${picked === index ? "picked" : ""} ${checked && index === question.answer ? "correct" : ""} ${checked && picked === index && index !== question.answer ? "incorrect" : ""}`}
-                        disabled={checked}
-                        onClick={() => setPicked(index)}
-                      >
-                        <span className="answer-letter">
-                          {String.fromCharCode(65 + index)}
-                        </span>
-                        <span>{option}</span>
-                        {checked && index === question.answer && (
-                          <PixelIcon name="check" size={18} />
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                  {checked && (
-                    <div
-                      className={`answer-feedback ${picked === question.answer ? "success" : "needs-practice"}`}
-                      role="status"
-                    >
-                      <PixelIcon
-                        name={picked === question.answer ? "spark" : "book"}
-                        size={20}
-                      />
-                      <div>
-                        <strong>
-                          {picked === question.answer
-                            ? "Nice move. You’ve got this!"
-                            : "A useful lesson for the next encounter."}
-                        </strong>
-                        <p>
-                          {question.explanation ??
-                            (picked === question.answer
-                              ? "You connected the idea to the right answer. Keep going."
-                              : `The answer is “${question.options[question.answer]}”. Revisit your ${theme === "fantasy" ? "spellbook" : "playbook"} if you want to review the concept.`)}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                  <div className="battle-actions">
-                    <span>
-                      {correct} / {quiz.length} correct
-                    </span>
-                    {checked ? (
-                      <button
-                        className="primary-button"
-                        onClick={nextEncounter}
-                      >
-                        {encounter === quiz.length - 1
-                          ? "Face the boss"
-                          : "Next encounter"}
-                        <PixelIcon
-                          name={
-                            encounter === quiz.length - 1 ? "crown" : "arrow"
-                          }
-                          size={18}
-                        />
-                      </button>
-                    ) : (
-                      <button
-                        className="primary-button"
-                        disabled={picked === null}
-                        onClick={checkAnswer}
-                      >
-                        Make your move
-                        <PixelIcon name="arrow" size={18} />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )}
-              {isBoss && (
-                <div className="question-area boss-question">
-                  <div className="boss-mode-note">
-                    <span className="status-dot" />
-                    PRACTICE BOSS · SELF-ASSESSED
-                  </div>
-                  <p className="question-text">
-                    “Teach me the main idea in your own words. Connect two
-                    concepts, then give me an example.”
-                  </p>
-                  <p className="boss-instruction">
-                    Explain <strong>{session.content.title}</strong>. Speak or
-                    type below. There’s no timer to beat.
-                  </p>
-                  {!bossReview ? (
-                    <>
-                      <div className="recording-controls">
-                        <button
-                          className={`record-button ${recording ? "recording" : ""}`}
-                          onClick={startRecording}
-                        >
-                          <PixelIcon
-                            name={recording ? "stop" : "mic"}
-                            size={19}
-                          />
-                          {recording ? "Stop recording" : "Record explanation"}
-                        </button>
-                        <span className="recording-timer">
-                          {recording
-                            ? `${Math.floor(recordSeconds / 60)
-                                .toString()
-                                .padStart(
-                                  2,
-                                  "0",
-                                )}:${(recordSeconds % 60).toString().padStart(2, "0")}`
-                            : "Or type your answer"}
-                        </span>
-                      </div>
-                      {speechError && (
-                        <p className="speech-error" role="alert">
-                          {speechError}
-                        </p>
-                      )}
-                      <label
-                        className="visually-hidden"
-                        htmlFor="boss-explanation"
-                      >
-                        Your explanation
-                      </label>
-                      <textarea
-                        id="boss-explanation"
-                        className="boss-transcript"
-                        value={explanation}
-                        onChange={(event) => setExplanation(event.target.value)}
-                        placeholder="Here’s how I’d explain it…"
-                        rows={5}
-                        disabled={recording}
-                      />
-                      <div className="battle-actions">
-                        <span>
-                          {words} words
-                          {words < 20
-                            ? " · aim for at least 20"
-                            : " · ready to review"}
-                        </span>
-                        <button
-                          className="primary-button"
-                          disabled={words < 20 || recording}
-                          onClick={() => setBossReview(true)}
-                        >
-                          Review explanation
-                          <PixelIcon name="arrow" size={18} />
-                        </button>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="boss-review">
-                      <p className="review-explanation">{explanation}</p>
-                      <h3>Does your explanation cover these?</h3>
-                      <p className="self-check-description">
-                        Check against your{" "}
-                        {theme === "fantasy" ? "spellbook" : "playbook"}. This
-                        practice round uses your self-check; AI grading isn’t
-                        connected yet.
-                      </p>
-                      {[
-                        "I explained the main idea accurately.",
-                        `I connected at least two concepts, such as ${session.content.mappings
-                          .slice(0, 2)
-                          .map((item) => item.concept.toLowerCase())
-                          .join(" and ")}.`,
-                        "I gave an example and explained why it fits.",
-                      ].map((criterion, index) => (
-                        <label className="rubric-item" key={index}>
-                          <input
-                            type="checkbox"
-                            checked={criteria[index]}
-                            onChange={(event) =>
-                              setCriteria((previous) =>
-                                previous.map((value, position) =>
-                                  position === index
-                                    ? event.target.checked
-                                    : value,
-                                ),
-                              )
-                            }
-                          />
-                          <span>{criterion}</span>
-                        </label>
-                      ))}
-                      <div className="battle-actions">
-                        <button
-                          className="text-button"
-                          onClick={() => setBossReview(false)}
-                        >
-                          Edit explanation
-                        </button>
-                        <button
-                          className="primary-button"
-                          disabled={!criteria.every(Boolean)}
-                          onClick={finishQuest}
-                        >
-                          {mode === "team" && bossPlayer < players.length - 1
-                            ? "Next teammate"
-                            : "Complete quest"}
-                          <PixelIcon name="crown" size={18} />
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                  {mode === "team" && (
-                    <div className="team-turns">
-                      {players.map((player, index) => (
-                        <span
-                          className={
-                            index === bossPlayer ? "current-player" : ""
-                          }
-                          key={index}
-                        >
-                          <PixelIcon
-                            name={
-                              completedPlayers.includes(player)
-                                ? "check"
-                                : "person"
-                            }
-                            size={13}
-                          />
-                          {player}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-            <p className="under-panel-note">
-              <PixelIcon name="spark" size={14} />
-              Every attempt is a level up.
-            </p>
-          </>
-        )}
-
-        {screen === "results" && session && (
-          <>
-            <div className="page-intro compact-intro">
-              <div className="eyebrow">
-                <PixelIcon name="spark" size={16} />A LITTLE WISER. A LITTLE
-                STRONGER.
+                <PixelIcon name="spark" size={15} />A FEW NEW FRIENDS. A FEW NEW
+                IDEAS.
               </div>
               <h1>
                 Quest complete.
                 <br />
                 <span>Knowledge unlocked.</span>
               </h1>
-              <p>
-                {mode === "team"
-                  ? "Your party showed up. Everyone had a voice."
-                  : "You learned it. You practiced it. You explained it."}
-              </p>
+              <p>You listened. You thought it through. You explained it.</p>
             </div>
-            <div className="results-panel pixel-panel">
+            <section className="results-panel pixel-panel">
               <div className="victory-emblem">
                 <PixelSprite kind="trophy" />
-                <span className="victory-spark spark-one">✦</span>
-                <span className="victory-spark spark-two">✦</span>
-                <span className="victory-spark spark-three">✧</span>
+                <span>✦</span>
               </div>
               <span className="subject-label">
-                {details.name.toUpperCase()} ADVENTURE{isDemo ? " · DEMO" : ""}
+                {worlds[theme].name.toUpperCase()} ADVENTURE
+                {demo ? " · DEMO" : ""}
               </span>
               <h2>{session.content.title}</h2>
+              <div className="result-friends" aria-label="Characters you met">
+                {Array.from(
+                  { length: session.content.quiz.length + 1 },
+                  (_, index) => (
+                    <span key={index}>
+                      <PixelSprite
+                        kind={
+                          getCharacter(
+                            theme,
+                            index,
+                            index === session.content.quiz.length,
+                          ).sprite
+                        }
+                      />
+                    </span>
+                  ),
+                )}
+              </div>
               <div className="results-stats">
                 <div>
                   <strong>
                     {correct}
-                    <span>/{quiz.length}</span>
+                    <small>/{session.content.quiz.length}</small>
                   </strong>
-                  <span>Questions mastered</span>
+                  <span>Correct on first try</span>
                 </div>
                 <div>
-                  <strong>{session.content.mappings.length}</strong>
-                  <span>Concepts explored</span>
+                  <strong>{completed}</strong>
+                  <span>Characters met</span>
                 </div>
                 <div>
                   <strong>
-                    <PixelIcon name="check" size={29} />
+                    <PixelIcon name="check" size={28} />
                   </strong>
                   <span>Explanation practiced</span>
                 </div>
               </div>
               <div className="results-recap">
                 <h3>
-                  <PixelIcon name="book" size={18} />
+                  <PixelIcon name="book" size={17} />
                   Take this with you
                 </h3>
                 <p>{session.content.summary}</p>
               </div>
-              {correct < quiz.length && (
+              {correct < session.content.quiz.length && (
                 <div className="review-topics">
-                  <h3>A little more practice</h3>
-                  {quiz
-                    .filter((q, index) => answers[index] !== q.answer)
-                    .map((q, index) => (
+                  <h3>Worth another look</h3>
+                  {session.content.quiz
+                    .filter(
+                      (question, index) => answers[index] !== question.answer,
+                    )
+                    .map((question, index) => (
                       <p key={index}>
                         <PixelIcon name="arrow" size={13} />
-                        {q.question}
+                        {question.question}
                       </p>
                     ))}
                 </div>
@@ -1279,17 +445,14 @@ export default function App() {
               <div className="results-actions">
                 <button
                   className="secondary-button"
-                  onClick={() => {
-                    resetAdventure();
-                    setScreen("learn");
-                  }}
+                  onClick={() => beginSession(session, demo)}
                 >
-                  <PixelIcon name="retry" size={17} />
-                  Practice again
+                  <PixelIcon name="retry" size={16} />
+                  Play again
                 </button>
-                <button className="primary-button" onClick={returnToSetup}>
+                <button className="primary-button" onClick={goHome}>
                   New adventure
-                  <PixelIcon name="arrow" size={18} />
+                  <PixelIcon name="arrow" size={17} />
                 </button>
               </div>
               <button
@@ -1299,79 +462,111 @@ export default function App() {
                 View your quest log
                 <PixelIcon name="book" size={15} />
               </button>
-            </div>
+            </section>
           </>
         )}
       </main>
       <footer className="site-footer">
         <span>
           <span className="location-dot" />
-          {details.location}
+          {worlds[theme].location}
         </span>
         <span className="footer-tagline">
           A little curiosity goes a long way.
         </span>
-        <button onClick={() => setOverlay("history")}>
-          QUEST LOG
-          <PixelIcon name="arrow" size={12} />
-        </button>
+        <span>SINGLE PLAYER · V0.2</span>
       </footer>
+
       {overlay === "help" && (
         <Modal
-          title="Your adventure, explained."
+          title="A little guide to your quest."
           onClose={() => setOverlay(null)}
         >
           <p className="modal-description">
-            Bring a tricky topic. Leave with a clearer understanding.
+            A single-player adventure. The characters are your teachers—and your
+            opponents.
           </p>
           <ol className="help-steps">
             <li>
-              <span>
-                <PixelIcon name="file" />
-              </span>
+              <PixelIcon name="sword" size={23} />
               <div>
-                <strong>Pack your notes</strong>
+                <strong>Choose a world. Bring your notes.</strong>
                 <p>
-                  Upload a TXT or Markdown file, or paste your study material.
-                  Pick Sports or Fantasy.
+                  Pick Sports or Fantasy, then upload TXT/Markdown or paste your
+                  study material on the next screen.
                 </p>
               </div>
             </li>
             <li>
-              <span>
-                <PixelIcon name="book" />
-              </span>
+              <PixelIcon name="book" size={23} />
               <div>
-                <strong>Learn the lore</strong>
+                <strong>Listen, learn, then fight.</strong>
                 <p>
-                  Explore explanations that connect the real concepts to your
-                  chosen world.
+                  Each character explains a concept through dialogue. Use FIGHT
+                  to answer their question. A wrong answer costs 4 HP and brings
+                  a little coaching. You can always try again.
                 </p>
               </div>
             </li>
             <li>
-              <span>
-                <PixelIcon name="sword" />
-              </span>
+              <PixelIcon name="crown" size={24} />
               <div>
-                <strong>Battle, then teach</strong>
+                <strong>Teach the final boss.</strong>
                 <p>
-                  Answer questions, then explain the idea aloud or in writing to
-                  complete the practice boss.
+                  Speak or type your explanation, then check it against your
+                  notes. This practice boss uses self-assessment while AI
+                  grading is being connected.
                 </p>
               </div>
             </li>
           </ol>
-          <p className="help-footnote">
-            Team mode is local co-op on one device. The practice boss uses
-            self-assessment while AI grading is being connected.
-          </p>
           <button
             className="primary-button full-width"
             onClick={() => setOverlay(null)}
           >
             Let’s do this
-            <PixelIcon name="arrow" size={18} />
+            <PixelIcon name="arrow" size={17} />
+          </button>
+        </Modal>
+      )}
+      {overlay === "notes" && session && (
+        <Modal
+          title={`Your ${worlds[theme].book.toLowerCase()}`}
+          onClose={() => setOverlay(null)}
+        >
+          <p className="modal-description">{session.content.title}</p>
+          <p className="book-overview">{session.content.overview}</p>
+          <div className="book-concepts">
+            {session.content.mappings.map((mapping, index) => (
+              <details key={index}>
+                <summary>
+                  <span>{String(index + 1).padStart(2, "0")}</span>
+                  {mapping.concept}
+                  <PixelIcon name="plus" size={13} />
+                </summary>
+                <p className="book-analogy">
+                  Think of it as {mapping.analogy.toLowerCase()}.
+                </p>
+                <p>{mapping.explanation}</p>
+              </details>
+            ))}
+          </div>
+          <details className="book-limitation">
+            <summary>
+              Where the analogy stops
+              <PixelIcon name="plus" size={13} />
+            </summary>
+            <p>
+              {session.content.limitation ??
+                "The story illustrates the concept, but does not replace its formal definition. Explain the real relationships as well as the analogy."}
+            </p>
+          </details>
+          <button
+            className="primary-button full-width book-return"
+            onClick={() => setOverlay(null)}
+          >
+            Back to the adventure
+            <PixelIcon name="arrow" size={17} />
           </button>
         </Modal>
       )}
@@ -1380,12 +575,12 @@ export default function App() {
           {log.length ? (
             <>
               <p className="modal-description">
-                Your adventures, saved on this device.
+                Your completed adventures, saved on this device.
               </p>
               <div className="quest-log">
                 {log.map((record) => (
                   <div className="quest-record" key={record.id}>
-                    <span className={`quest-record-icon ${record.theme}`}>
+                    <span className="quest-record-icon">
                       <PixelIcon
                         name={record.theme === "fantasy" ? "sword" : "football"}
                         size={21}
@@ -1394,8 +589,8 @@ export default function App() {
                     <div>
                       <strong>{record.title}</strong>
                       <small>
-                        {themeDetails[record.theme].name} · {record.score}/
-                        {record.total} correct ·{" "}
+                        {worlds[record.theme].name} · {record.score}/
+                        {record.total} first try ·{" "}
                         {new Date(record.completedAt).toLocaleDateString(
                           undefined,
                           { month: "short", day: "numeric" },
@@ -1403,32 +598,33 @@ export default function App() {
                         {record.demo ? " · Demo" : ""}
                       </small>
                     </div>
-                    <PixelIcon name="check" size={17} />
+                    <PixelIcon name="check" size={16} />
                   </div>
                 ))}
               </div>
             </>
           ) : (
             <div className="empty-log">
-              <PixelIcon name="book" size={42} />
+              <PixelIcon name="book" size={38} />
               <h3>Your story starts here.</h3>
               <p>Complete an adventure and it will appear in your quest log.</p>
-              <button
-                className="primary-button"
-                onClick={() => setOverlay(null)}
-              >
-                Back to the adventure
-                <PixelIcon name="arrow" size={17} />
-              </button>
             </div>
           )}
         </Modal>
       )}
-      {overlay === "leave" && (
-        <Modal title="Head back to camp?" onClose={() => setOverlay(null)}>
+      {(overlay === "leave" || overlay === "home") && (
+        <Modal
+          title={
+            overlay === "leave"
+              ? "Back to the trail?"
+              : "Start a new adventure?"
+          }
+          onClose={() => setOverlay(null)}
+        >
           <p className="modal-description">
-            Your current battle progress will reset. Your study notes will stay
-            here.
+            {overlay === "leave"
+              ? "This conversation will restart. Your cleared encounters and first-attempt scores are safe."
+              : "Your current adventure will reset. Your study notes will stay here."}
           </p>
           <div className="modal-actions">
             <button
@@ -1437,9 +633,19 @@ export default function App() {
             >
               Keep adventuring
             </button>
-            <button className="primary-button" onClick={returnToSetup}>
-              Back to camp
-              <PixelIcon name="arrow" size={17} />
+            <button
+              className="primary-button"
+              onClick={() => {
+                if (overlay === "home") goHome();
+                else {
+                  if (hp === 0) setHp(20);
+                  setOverlay(null);
+                  setScreen("journey");
+                }
+              }}
+            >
+              Back to {overlay === "home" ? "camp" : "the trail"}
+              <PixelIcon name="arrow" size={16} />
             </button>
           </div>
         </Modal>
