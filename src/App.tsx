@@ -238,34 +238,38 @@ export default function App() {
             <span className="brand-period">.</span>
           </span>
         </button>
-        <nav className="step-nav" aria-label="Adventure progress">
-          {navSteps.map((step, index) => (
-            <span
-              className={`nav-step ${index === activeStep ? "active" : ""} ${index < activeStep ? "complete" : ""}`}
-              key={step}
-              aria-current={index === activeStep ? "step" : undefined}
-            >
-              <span className="step-number">
-                {index < activeStep ? (
-                  <PixelIcon name="check" size={12} />
-                ) : (
-                  `0${index + 1}`
-                )}
+        {screen !== "battle" && (
+          <nav className="step-nav" aria-label="Adventure progress">
+            {navSteps.map((step, index) => (
+              <span
+                className={`nav-step ${index === activeStep ? "active" : ""} ${index < activeStep ? "complete" : ""}`}
+                key={step}
+                aria-current={index === activeStep ? "step" : undefined}
+              >
+                <span className="step-number">
+                  {index < activeStep ? (
+                    <PixelIcon name="check" size={12} />
+                  ) : (
+                    `0${index + 1}`
+                  )}
+                </span>
+                <span>{step}</span>
+                {index < 2 && <i />}
               </span>
-              <span>{step}</span>
-              {index < 2 && <i />}
-            </span>
-          ))}
-        </nav>
+            ))}
+          </nav>
+        )}
         <div className="header-actions">
-          <button
-            className="text-button how-button"
-            aria-label="How to play"
-            onClick={() => setOverlay("help")}
-          >
-            <PixelIcon name="help" size={16} />
-            <span>How to play</span>
-          </button>
+          {screen !== "battle" && (
+            <button
+              className="text-button how-button"
+              aria-label="How to play"
+              onClick={() => setOverlay("help")}
+            >
+              <PixelIcon name="help" size={16} />
+              <span>How to play</span>
+            </button>
+          )}
           <button
             className="icon-button"
             aria-label={sound ? "Mute game sounds" : "Enable game sounds"}
@@ -277,13 +281,15 @@ export default function App() {
           >
             <PixelIcon name={sound ? "sound" : "mute"} size={19} />
           </button>
-          <button
-            className="icon-button"
-            aria-label="Open quest log"
-            onClick={() => setOverlay("history")}
-          >
-            <PixelIcon name="book" size={18} />
-          </button>
+          {screen !== "battle" && (
+            <button
+              className="icon-button"
+              aria-label="Open quest log"
+              onClick={() => setOverlay("history")}
+            >
+              <PixelIcon name="book" size={18} />
+            </button>
+          )}
         </div>
       </header>
 
@@ -502,9 +508,11 @@ export default function App() {
               <div>
                 <strong>Listen, learn, then fight.</strong>
                 <p>
-                  Each character explains a concept through dialogue. Use FIGHT
-                  to answer their question. A wrong answer costs 4 HP and brings
-                  a little coaching. You can always try again.
+                  Each character explains a concept through dialogue. Continue
+                  to their question, then choose your answer. The encounter menu
+                  lets you review the lesson, open notes, or leave. A wrong
+                  answer costs 4 HP and brings a little coaching. You can always
+                  try again.
                 </p>
               </div>
             </li>

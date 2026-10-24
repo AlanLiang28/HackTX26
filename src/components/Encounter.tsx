@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { PixelIcon } from "./PixelIcon";
 import { PixelSprite } from "./PixelSprite";
 import { DialogueBox } from "./DialogueBox";
@@ -44,13 +44,43 @@ export function Encounter({
   const [picked, setPicked] = useState<number | null>(null);
   const [passed, setPassed] = useState(false);
   const [bossChecks, setBossChecks] = useState(0);
+  const options = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    function dismiss(event: PointerEvent) {
+      if (
+        options.current &&
+        event.target instanceof Node &&
+        !options.current.contains(event.target)
+      )
+        options.current.open = false;
+    }
+    function escape(event: KeyboardEvent) {
+      if (event.key === "Escape" && options.current?.open) {
+        options.current.open = false;
+        options.current.querySelector("summary")?.focus();
+      }
+    }
+    document.addEventListener("pointerdown", dismiss);
+    document.addEventListener("keydown", escape);
+    return () => {
+      document.removeEventListener("pointerdown", dismiss);
+      document.removeEventListener("keydown", escape);
+    };
+  }, []);
+  function closeOptions() {
+    if (options.current) {
+      options.current.open = false;
+      options.current.querySelector("summary")?.focus({ preventScroll: true });
+    }
+  }
   const question = session.content.quiz[index];
   const correct = !boss && picked === question.answer;
-  function checkAnswer() {
-    if (picked === null || !question) return;
-    onAnswer(picked);
+  function checkAnswer(answer: number) {
+    if (phase !== "question" || !question) return;
+    setPicked(answer);
+    onAnswer(answer);
     setPhase("feedback");
-    if (picked === question.answer) {
+    if (answer === question.answer) {
       setPassed(true);
       onPass();
     } else onMistake();
@@ -69,14 +99,49 @@ export function Encounter({
       <div className="encounter-topline">
         <span>
           <span className="status-square" />
-          {worlds[theme].location}
-        </span>
-        <span>
           {boss
             ? "THE FINAL MEETING"
             : `ENCOUNTER ${String(index + 1).padStart(2, "0")}`}{" "}
           / {String(session.content.quiz.length + 1).padStart(2, "0")}
         </span>
+        <details ref={options} className="encounter-options">
+          <summary aria-label="Encounter options">
+            <span aria-hidden="true">···</span>
+          </summary>
+          <div className="encounter-dropdown">
+            <button
+              onClick={() => {
+                closeOptions();
+                if (boss && phase === "question") onNotes();
+                else {
+                  setLine(0);
+                  setPhase("talk");
+                }
+              }}
+            >
+              <PixelIcon name="retry" size={14} />
+              Review lesson
+            </button>
+            <button
+              onClick={() => {
+                closeOptions();
+                onNotes();
+              }}
+            >
+              <PixelIcon name="book" size={14} />
+              Open {worlds[theme].book.toLowerCase()}
+            </button>
+            <button
+              onClick={() => {
+                closeOptions();
+                onLeave();
+              }}
+            >
+              <PixelIcon name="arrowLeft" size={14} />
+              Back to the trail
+            </button>
+          </div>
+        </details>
       </div>
       <section
         className={`encounter-stage ${passed ? "enemy-passed" : ""} ${phase === "feedback" && !correct ? "player-hit" : ""}`}
@@ -117,23 +182,18 @@ export function Encounter({
       <div className="encounter-content">
         {phase === "talk" && (
           <>
-            <span className="dialogue-progress">
-              {line === 0
-                ? "A NEW FACE"
-                : `LESSON ${line} / ${lesson.length - 1}`}
-            </span>
             <DialogueBox
               key={`talk-${line}`}
               speaker={character.name}
               text={lesson[line]}
               actionLabel={
                 line < lesson.length - 1
-                  ? "Tell me more"
+                  ? "Continue"
                   : passed
                     ? "Return to trail"
                     : boss
-                      ? "I’m ready to explain"
-                      : "I’m ready to fight"
+                      ? "Explain the concept"
+                      : "Answer question"
               }
               onContinue={() =>
                 line < lesson.length - 1
@@ -165,29 +225,17 @@ export function Encounter({
               {question.options.map((option, optionIndex) => (
                 <button
                   key={optionIndex}
-                  className={`combat-answer ${picked === optionIndex ? "selected" : ""}`}
-                  aria-pressed={picked === optionIndex}
-                  onClick={() => setPicked(optionIndex)}
+                  className="combat-answer"
+                  onClick={() => checkAnswer(optionIndex)}
                 >
                   <PixelIcon name="heart" size={14} />
-                  <span className="answer-key">
-                    {String.fromCharCode(65 + optionIndex)}
-                  </span>
                   <span>{option}</span>
                 </button>
               ))}
             </div>
-            <div className="question-footer">
-              <span>THINK IT THROUGH. YOU HAVE TIME.</span>
-              <button
-                className="combat-small-button"
-                disabled={picked === null}
-                onClick={checkAnswer}
-              >
-                Make your move
-                <PixelIcon name="sword" size={16} />
-              </button>
-            </div>
+            <p className="answer-instruction">
+              Choose an answer to make your move.
+            </p>
           </section>
         )}
         {phase === "question" && boss && (
@@ -215,7 +263,7 @@ export function Encounter({
               text={feedback}
               actionLabel={
                 correct
-                  ? "Continue the adventure"
+                  ? "Continue"
                   : hp === 0
                     ? "Regroup at the trail"
                     : "Try again"
@@ -233,8 +281,6 @@ export function Encounter({
         )}
       </div>
       <div className="player-stats">
-        <span className="player-name">YOU</span>
-        <span>LV {String(Math.min(index + 1, 9)).padStart(2, "0")}</span>
         <span className="player-hp-label">HP</span>
         <div
           className="player-hp"
@@ -247,44 +293,7 @@ export function Encounter({
           <span style={{ width: `${(hp / 20) * 100}%` }} />
         </div>
         <span>{String(hp).padStart(2, "0")} / 20</span>
-        <span className="player-status">
-          {boss ? "EXPLAIN TO PREVAIL" : "CURIOSITY EQUIPPED"}
-        </span>
       </div>
-      <nav className="combat-menu" aria-label="Encounter actions">
-        <button
-          className={phase === "talk" ? "active" : ""}
-          onClick={() => {
-            if (boss && phase === "question") onNotes();
-            else {
-              setLine(0);
-              setPhase("talk");
-            }
-          }}
-        >
-          <PixelIcon name="book" size={19} />
-          LEARN
-        </button>
-        <button
-          className={phase === "question" ? "active" : ""}
-          disabled={passed || hp === 0}
-          onClick={fight}
-        >
-          <PixelIcon name="sword" size={20} />
-          FIGHT
-        </button>
-        <button onClick={onNotes}>
-          <PixelIcon name="file" size={18} />
-          NOTES
-        </button>
-        <button onClick={onLeave}>
-          <PixelIcon name="arrowLeft" size={18} />
-          LEAVE
-        </button>
-      </nav>
-      <p className="combat-hint">
-        Take your time. Click to choose, or use Tab and Enter.
-      </p>
     </div>
   );
 }

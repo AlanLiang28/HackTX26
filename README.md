@@ -24,7 +24,7 @@ The backend requires the existing environment configuration and database setup. 
 1. **Your world:** a dedicated screen for choosing Sports or Fantasy, with artwork and a preview of the characters.
 2. **Your notes:** a separate screen for uploading TXT/Markdown or pasting up to 20,000 characters. The demo works without the backend.
 3. **Adventure trail:** meet each opponent in order, then unlock the boss. Cleared encounters stay cleared when you leave a conversation.
-4. **Character encounters:** each question has its own character. Read their typewriter dialogue, learn the assigned concepts, then use FIGHT to answer. LEARN repeats the explanation; NOTES opens the full reference. Incorrect answers cost 4 HP, offer coaching, and allow a retry. At 0 HP, regroup on the trail and recover.
+4. **Character encounters:** each question has its own character. Read their typewriter dialogue, then choose an answer directly. One contextual action advances the conversation or retries a question. The small encounter menu contains lesson review, notes, and returning to the trail. Incorrect answers cost 4 HP, offer coaching, and allow a retry. At 0 HP, regroup on the trail and recover.
 5. **Boss:** speak or type an explanation, review it, and complete an explicit self-assessment. Opening notes does not erase the explanation.
 6. **Victory:** see your first-attempt score, characters met, and questions worth reviewing. Play again or start a new adventure. Completed quests are saved on this device.
 
@@ -37,7 +37,7 @@ The project uses its existing SVG pixel-grid art system, with deliberately simpl
 - **Fantasy:** Mossby the slime, Sir Clanks the knight, Wisp the mage, Professor Ember the dragon.
 - **Sports:** Rookie Reed, Coach Dash, Coach Cross, Coach Stone.
 
-Character art is in `src/components/PixelSprite.tsx`; personalities and lesson assignment are in `src/lib/characters.ts`. Characters retain their colors during battles, alongside crisp square pixels, monochrome dialogue boxes, heart cursors, and a four-action menu. No external character image requests are needed.
+Character art is in `src/components/PixelSprite.tsx`; personalities and lesson assignment are in `src/lib/characters.ts`. Characters retain their colors during battles, alongside crisp square pixels, monochrome dialogue boxes, heart cursors, and a minimal contextual interface. No external character image requests are needed.
 
 ## Backend handoff
 

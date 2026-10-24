@@ -916,6 +916,11 @@
 .in-combat .location-dot {
   background: #6a8552;
 }
+.in-combat .site-header {
+  min-height: 72px;
+  padding-top: 0;
+  flex-wrap: nowrap;
+}
 .screen-battle {
   padding-top: 13px;
   padding-bottom: 25px;
@@ -939,6 +944,57 @@
   display: flex;
   align-items: center;
   gap: 8px;
+}
+.encounter-options {
+  position: relative;
+  flex-shrink: 0;
+}
+.encounter-options summary {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 32px;
+  list-style: none;
+  cursor: pointer;
+  color: #a7b58f;
+  font-size: 27px;
+  line-height: 1;
+  letter-spacing: 2px;
+}
+.encounter-options summary::-webkit-details-marker {
+  display: none;
+}
+.encounter-options summary:hover,
+.encounter-options[open] summary {
+  background: #25301d;
+  color: #e5e6cd;
+}
+.encounter-dropdown {
+  position: absolute;
+  z-index: 10;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 190px;
+  padding: 5px;
+  background: #192213;
+  border: 1px solid #536444;
+  box-shadow: 0 7px 20px #0005;
+}
+.encounter-dropdown button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 11px 10px;
+  text-align: left;
+  background: transparent;
+  color: #c1d0a7;
+  font-size: 13px;
+  letter-spacing: 0;
+}
+.encounter-dropdown button:hover {
+  background: #2a361e;
+  color: #f0efd9;
 }
 .status-square {
   width: 5px;
@@ -1061,14 +1117,6 @@
 .encounter-content {
   min-height: 179px;
 }
-.dialogue-progress {
-  display: block;
-  text-align: right;
-  font-size: 8px;
-  letter-spacing: 1px;
-  color: #69795a;
-  margin-bottom: 8px;
-}
 .dialogue-box {
   border: 3px solid #eeeee0;
   padding: 19px 24px 15px;
@@ -1124,16 +1172,13 @@
 .player-stats {
   display: flex;
   align-items: center;
-  gap: 15px;
-  padding: 23px 4px 19px;
-  font-size: 16px;
+  justify-content: center;
+  gap: 11px;
+  padding: 22px 4px 10px;
+  font-size: 13px;
   color: #e3e4d5;
 }
-.player-name {
-  margin-right: 8px;
-}
 .player-hp-label {
-  margin-left: 14px;
   color: #a6b68a;
   font-size: 11px;
 }
@@ -1147,48 +1192,6 @@
   height: 100%;
   background: #e6d26d;
   transition: width 0.3s;
-}
-.player-status {
-  margin-left: auto;
-  font-size: 8px;
-  letter-spacing: 0.9px;
-  color: #788666;
-}
-.combat-menu {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
-}
-.combat-menu > button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 11px;
-  border: 2px solid #b8924e;
-  background: #10150d;
-  color: #cba563;
-  min-height: 47px;
-  padding: 8px 10px;
-  font-size: 21px;
-  letter-spacing: 1px;
-}
-.combat-menu > button:hover,
-.combat-menu > button.active {
-  border-color: #e0d695;
-  color: #e4d995;
-  background: #202719;
-}
-.combat-menu > button:disabled {
-  color: #596346;
-  border-color: #404a31;
-  background: transparent;
-}
-.combat-hint {
-  text-align: center;
-  color: #657253;
-  font-size: 9px;
-  margin-top: 16px;
-  letter-spacing: 0.2px;
 }
 .in-combat button:focus-visible,
 .in-combat textarea:focus-visible {
@@ -1234,22 +1237,20 @@
   color: #e8bb7e;
 }
 .combat-answer:hover,
-.combat-answer.selected {
+.combat-answer:focus-visible {
   background: #242e1b;
   border-color: #adbd88;
   color: #f4f0d6;
 }
 .combat-answer:hover > svg,
-.combat-answer.selected > svg {
+.combat-answer:focus-visible > svg {
   visibility: visible;
 }
-.answer-key {
-  color: #768762;
+.answer-instruction {
+  color: #7c8d65;
   font-size: 10px;
-  border: 1px solid #425132;
-  padding: 1px 4px;
+  margin-top: 14px;
 }
-.question-footer,
 .boss-bottom {
   display: flex;
   align-items: center;
@@ -1257,7 +1258,6 @@
   gap: 12px;
   margin-top: 20px;
 }
-.question-footer > span,
 .boss-bottom > span {
   font-size: 8px;
   letter-spacing: 0.8px;
@@ -1890,22 +1890,12 @@
     width: 134px;
     height: 136px;
   }
-  .combat-menu {
-    gap: 10px;
-  }
-  .combat-menu > button {
-    font-size: 18px;
-    gap: 8px;
-  }
   .dialogue-text {
     font-size: 19px;
   }
   .player-stats {
     gap: 12px;
     font-size: 15px;
-  }
-  .player-status {
-    font-size: 7px;
   }
   .combat-answers {
     gap: 8px;
@@ -2147,44 +2137,17 @@
   .dialogue-continue {
     font-size: 12px;
   }
-  .dialogue-progress {
-    font-size: 7px;
-  }
   .player-stats {
     font-size: 13px;
     gap: 9px;
     padding-top: 19px;
   }
-  .player-name {
-    margin-right: 2px;
-  }
   .player-hp-label {
-    margin-left: 5px;
     font-size: 9px;
   }
   .player-hp {
     width: 67px;
     height: 12px;
-  }
-  .player-status {
-    display: none;
-  }
-  .combat-menu {
-    gap: 7px;
-  }
-  .combat-menu > button {
-    min-height: 42px;
-    gap: 5px;
-    font-size: 14px;
-    padding: 6px 3px;
-    letter-spacing: 0;
-  }
-  .combat-menu svg {
-    width: 13px;
-    height: 13px;
-  }
-  .combat-hint {
-    font-size: 8px;
   }
   .combat-question-box h2,
   .boss-prompt {
@@ -2199,14 +2162,6 @@
     min-height: 43px;
     padding: 10px 9px;
     font-size: 14px;
-  }
-  .question-footer {
-    align-items: flex-end;
-  }
-  .question-footer > span {
-    font-size: 6px;
-    max-width: 100px;
-    line-height: 1.8;
   }
   .combat-small-button {
     font-size: 11px;
