@@ -3,10 +3,13 @@
 import express from "express";
 import path from "node:path";
 import pg from "pg";
+import { GoogleGenAI } from "@google/genai";
+import OpenAI from "openai";
 import { registerCoachRoute } from "./coach.ts";
 import rateLimit from "express-rate-limit";
 import { gameRouter } from "./game-routes.ts";
 import { generateText, parseJsonLoose, LlmError } from "./llm.ts";
+import { bossRouter } from "./boss.ts";
 
 process.loadEnvFile();
 
@@ -17,7 +20,14 @@ const app = express();
 app.set("trust proxy", 1); // we're behind Caddy, so read the visitor's real IP
 
 // Only game/start calls the model; next/answer/restart are cheap and stay unlimited.
-const AI_ROUTES = ["/api/explain", "/api/coach", "/api/sessions", "/api/game/start"];
+// Same for the boss fight: only attempt (transcribe + grade) calls the model.
+const AI_ROUTES = [
+  "/api/explain",
+  "/api/coach",
+  "/api/sessions",
+  "/api/game/start",
+  "/api/sessions/:code/boss/attempt",
+];
 
 // Per visitor: 5 AI requests per minute, 40 per day
 const perMinute = rateLimit({
@@ -63,6 +73,13 @@ const db = new pg.Pool({
 });
 
 // ---- Model: Meta Muse (see llm.ts) ----
+
+// ---- Boss fight models (boss.ts) ----
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+// Muse (Meta): null until the team has a key; boss LLM calls fall back to Gemini.
+const muse = process.env.META_API_KEY
+  ? new OpenAI({ apiKey: process.env.META_API_KEY, baseURL: "https://api.meta.ai/v1" })
+  : null;
 
 function buildPrompt(topic: string, interest: string, level: string) {
   return `You are a friendly tutor who explains things using analogies from the student's interests.
@@ -135,6 +152,9 @@ app.get("/api/stats", async (_req, res) => {
   `);
   res.json(result.rows);
 });
+
+// ---- Part 3: boss fight (must stay above the static site + catch-all) ----
+app.use(bossRouter({ db, ai, muse }));
 
 // ---- Serve the built React site (after `npm run build`) ----
 app.use(express.static(path.resolve("dist")));
