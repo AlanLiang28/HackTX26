@@ -6,15 +6,18 @@ import { WorldScreen, MaterialsScreen } from "./components/SetupScreens";
 import { AdventureMap } from "./components/AdventureMap";
 import { Encounter } from "./components/Encounter";
 import { Modal } from "./components/Modal";
-import {
-  getDemoSession,
-  isStudySession,
-  readQuestLog,
-  saveQuest,
-} from "./lib/study";
+import { getDemoSession, readQuestLog, saveQuest } from "./lib/study";
 import { getCharacter, worlds } from "./lib/characters";
 import type { QuestRecord, StudySession, Theme } from "./lib/study";
 import "./App.css";
+import {
+  adaptiveStudySession,
+  startAdaptiveGame,
+  nextAdaptiveEncounter,
+  gradeAdaptiveAnswer,
+  restartAdaptiveGame,
+} from "./lib/adaptive";
+import type { AdaptiveGame, RemoteEncounter } from "./lib/adaptive";
 
 type Screen = "world" | "materials" | "journey" | "battle" | "results";
 type Overlay = "help" | "history" | "notes" | "leave" | "home" | null;
@@ -33,6 +36,11 @@ export default function App() {
   const [completed, setCompleted] = useState(0);
   const [encounter, setEncounter] = useState(0);
   const [answers, setAnswers] = useState<Record<number, number>>({});
+  const [adaptive, setAdaptive] = useState<AdaptiveGame | null>(null);
+  const [remoteEncounter, setRemoteEncounter] =
+    useState<RemoteEncounter | null>(null);
+  const [gameBusy, setGameBusy] = useState(false);
+  const [gameError, setGameError] = useState("");
   const [hp, setHp] = useState(20);
   const [overlay, setOverlay] = useState<Overlay>(null);
   const [sound, setSound] = useState(false);
@@ -42,10 +50,12 @@ export default function App() {
   const saved = useRef(false);
   const main = useRef<HTMLElement>(null);
   const activeStep = screen === "world" ? 0 : screen === "materials" ? 1 : 2;
-  const correct =
-    session?.content.quiz.filter(
-      (question, index) => answers[index] === question.answer,
-    ).length ?? 0;
+  const correct = adaptive
+    ? adaptive.state.defeated
+    : (session?.content.quiz.filter(
+        (question, index) => answers[index] === question.answer,
+      ).length ?? 0);
+  const failed = adaptive?.state.phase === "game_over";
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "instant" });
@@ -83,6 +93,9 @@ export default function App() {
     }
   }
   function beginSession(next: StudySession, isDemo: boolean) {
+    if (isDemo) setAdaptive(null);
+    setRemoteEncounter(null);
+    setGameError("");
     setSession(next);
     setDemo(isDemo);
     setCompleted(0);
@@ -139,27 +152,13 @@ export default function App() {
     request.current = controller;
     const timeout = window.setTimeout(() => controller.abort(), 60000);
     try {
-      const response = await fetch("/api/explain", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        signal: controller.signal,
-        body: JSON.stringify({
-          topic: notes.trim(),
-          interest:
-            theme === "sports"
-              ? "American football"
-              : "fantasy adventures, knights, and dragons",
-          level: "high school",
-        }),
-      });
-      const data: unknown = await response.json().catch(() => null);
-      if (!response.ok)
-        throw new Error(
-          "Your adventure could not be created. Try again, or explore the demo below.",
-        );
-      if (!isStudySession(data))
-        throw new Error("The lesson came back incomplete. Please try again.");
-      beginSession(data, false);
+      const game = await startAdaptiveGame(
+        notes.trim(),
+        theme,
+        controller.signal,
+      );
+      setAdaptive(game);
+      beginSession(adaptiveStudySession(game, notes.trim(), theme), false);
     } catch (err) {
       setError(
         err instanceof Error && err.name === "AbortError"
@@ -174,12 +173,126 @@ export default function App() {
       setLoading(false);
     }
   }
-  function enterEncounter(index: number) {
-    if (!session || index !== completed || index > session.content.quiz.length)
+  async function enterEncounter(index: number) {
+    if (
+      !session ||
+      gameBusy ||
+      index !== completed ||
+      index > session.content.quiz.length
+    )
       return;
+    if (adaptive && adaptive.state.phase === "game_over") {
+      setScreen("results");
+      return;
+    }
+    if (adaptive && index < session.content.quiz.length) {
+      setGameBusy(true);
+      setGameError("");
+      try {
+        const next = await nextAdaptiveEncounter(adaptive);
+        setAdaptive({ ...adaptive, state: next.state });
+        if (!next.encounter) {
+          setCompleted(next.state.completed);
+          return;
+        }
+        const current = next.encounter;
+        setRemoteEncounter(current);
+        setSession((previous) =>
+          previous
+            ? {
+                ...previous,
+                content: {
+                  ...previous.content,
+                  quiz: previous.content.quiz.map((question, slot) =>
+                    slot === index
+                      ? {
+                          question: current.question.prompt,
+                          options: current.question.options,
+                          answer: -1,
+                          subtopic: current.enemy.subtopic,
+                        }
+                      : question,
+                  ),
+                },
+              }
+            : previous,
+        );
+      } catch (err) {
+        setGameError(
+          err instanceof Error
+            ? err.message
+            : "Could not load the next encounter. Try again.",
+        );
+        return;
+      } finally {
+        setGameBusy(false);
+      }
+    } else setRemoteEncounter(null);
     setEncounter(index);
     setScreen("battle");
     chime();
+  }
+  async function gradeAnswer(choice: number) {
+    if (!adaptive || !remoteEncounter)
+      throw new Error("Return to the trail and load the encounter again.");
+    setGameBusy(true);
+    try {
+      const result = await gradeAdaptiveAnswer(
+        adaptive,
+        remoteEncounter,
+        choice,
+      );
+      setAdaptive({ ...adaptive, state: result.state });
+      setCompleted(result.state.completed);
+      setHp(Math.round((result.state.lives / result.state.maxLives) * 20));
+      setAnswers((previous) => ({ ...previous, [encounter]: result.choice }));
+      setSession((previous) =>
+        previous
+          ? {
+              ...previous,
+              content: {
+                ...previous.content,
+                quiz: previous.content.quiz.map((question, slot) =>
+                  slot === encounter
+                    ? {
+                        ...question,
+                        answer: result.correctIndex,
+                        explanation: result.explanation,
+                      }
+                    : question,
+                ),
+              },
+            }
+          : previous,
+      );
+      if (result.correct) chime();
+      return result;
+    } finally {
+      setGameBusy(false);
+    }
+  }
+  async function replay() {
+    if (!session || gameBusy) return;
+    if (!adaptive) {
+      beginSession(session, demo);
+      return;
+    }
+    setGameBusy(true);
+    setGameError("");
+    try {
+      const state = await restartAdaptiveGame(adaptive);
+      const game = { ...adaptive, state };
+      setAdaptive(game);
+      beginSession(adaptiveStudySession(game, session.topic, theme), false);
+    } catch (err) {
+      setGameError(
+        err instanceof Error
+          ? err.message
+          : "Could not restart. Please try again.",
+      );
+    } finally {
+      setGameBusy(false);
+    }
   }
   function recordAnswer(answer: number) {
     setAnswers((previous) =>
@@ -223,7 +336,7 @@ export default function App() {
         <button
           className="brand"
           aria-label="StudyRaid home"
-          disabled={loading}
+          disabled={loading || gameBusy}
           onClick={() =>
             setupScreens.includes(screen) || screen === "results"
               ? goHome()
@@ -337,6 +450,9 @@ export default function App() {
             demo={demo}
             onEnter={enterEncounter}
             onNotes={() => setOverlay("notes")}
+            busy={gameBusy}
+            error={gameError}
+            outcomes={adaptive?.state.trail}
           />
         )}
         {screen === "battle" && session && (
@@ -346,13 +462,19 @@ export default function App() {
             session={session}
             index={encounter}
             hp={hp}
+            onGrade={adaptive && remoteEncounter ? gradeAnswer : undefined}
+            focus={adaptive?.state.weakest?.name}
             onAnswer={recordAnswer}
             onPass={() => {
               setCompleted((value) => Math.max(value, encounter + 1));
               chime();
             }}
             onMistake={() => setHp((value) => Math.max(0, value - 4))}
-            onContinue={() => setScreen("journey")}
+            onContinue={() =>
+              setScreen(
+                adaptive?.state.phase === "game_over" ? "results" : "journey",
+              )
+            }
             onLeave={() => setOverlay("leave")}
             onRegroup={() => {
               setHp(20);
@@ -370,11 +492,17 @@ export default function App() {
                 IDEAS.
               </div>
               <h1>
-                Quest complete.
+                {failed ? "Time to regroup." : "Quest complete."}
                 <br />
-                <span>Knowledge unlocked.</span>
+                <span>
+                  {failed ? "A little wiser already." : "Knowledge unlocked."}
+                </span>
               </h1>
-              <p>You listened. You thought it through. You explained it.</p>
+              <p>
+                {failed
+                  ? "Review the tricky concepts, then try a fresh run."
+                  : "You listened. You thought it through. You explained it."}
+              </p>
             </div>
             <section className="results-panel pixel-panel">
               <div className="victory-emblem">
@@ -388,7 +516,11 @@ export default function App() {
               <h2>{session.content.title}</h2>
               <div className="result-friends" aria-label="Characters you met">
                 {Array.from(
-                  { length: session.content.quiz.length + 1 },
+                  {
+                    length: failed
+                      ? completed
+                      : session.content.quiz.length + 1,
+                  },
                   (_, index) => (
                     <span key={index}>
                       <PixelSprite
@@ -418,9 +550,11 @@ export default function App() {
                 </div>
                 <div>
                   <strong>
-                    <PixelIcon name="check" size={28} />
+                    <PixelIcon name={failed ? "book" : "check"} size={28} />
                   </strong>
-                  <span>Explanation practiced</span>
+                  <span>
+                    {failed ? "Ready to review" : "Explanation practiced"}
+                  </span>
                 </div>
               </div>
               <div className="results-recap">
@@ -435,7 +569,9 @@ export default function App() {
                   <h3>Worth another look</h3>
                   {session.content.quiz
                     .filter(
-                      (question, index) => answers[index] !== question.answer,
+                      (question, index) =>
+                        answers[index] !== undefined &&
+                        answers[index] !== question.answer,
                     )
                     .map((question, index) => (
                       <p key={index}>
@@ -446,21 +582,29 @@ export default function App() {
                 </div>
               )}
               <p className="practice-note">
-                Boss explanation completed with self-assessment.
+                {failed
+                  ? `Focus next on ${adaptive?.state.weakest?.name ?? "the concepts you missed"}.`
+                  : "Boss explanation completed with self-assessment."}
               </p>
               <div className="results-actions">
                 <button
                   className="secondary-button"
-                  onClick={() => beginSession(session, demo)}
+                  onClick={() => void replay()}
+                  disabled={gameBusy}
                 >
                   <PixelIcon name="retry" size={16} />
-                  Play again
+                  {gameBusy ? "Restarting…" : "Play again"}
                 </button>
                 <button className="primary-button" onClick={goHome}>
                   New adventure
                   <PixelIcon name="arrow" size={17} />
                 </button>
               </div>
+              {gameError && (
+                <p className="error-feedback" role="alert">
+                  {gameError}
+                </p>
+              )}
               <button
                 className="text-button view-log"
                 onClick={() => setOverlay("history")}
@@ -510,9 +654,9 @@ export default function App() {
                 <p>
                   Each character explains a concept through dialogue. Continue
                   to their question, then choose your answer. The encounter menu
-                  lets you review the lesson, open notes, or leave. A wrong
-                  answer costs 4 HP and brings a little coaching. You can always
-                  try again.
+                  lets you review the lesson, open notes, or leave. In a live
+                  quest, you have three lives. Missed concepts shape the next
+                  questions. The offline demo lets you retry each question.
                 </p>
               </div>
             </li>
@@ -646,7 +790,7 @@ export default function App() {
               onClick={() => {
                 if (overlay === "home") goHome();
                 else {
-                  if (hp === 0) setHp(20);
+                  if (hp === 0 && !adaptive) setHp(20);
                   setOverlay(null);
                   setScreen("journey");
                 }

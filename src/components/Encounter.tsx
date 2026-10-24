@@ -5,6 +5,7 @@ import { DialogueBox } from "./DialogueBox";
 import { BossChallenge } from "./BossChallenge";
 import { getCharacter, getLessonLines, worlds } from "../lib/characters";
 import type { StudySession, Theme } from "../lib/study";
+import type { GradedAnswer } from "../lib/adaptive";
 
 export function Encounter({
   theme,
@@ -19,6 +20,8 @@ export function Encounter({
   onRegroup,
   onNotes,
   onFinish,
+  onGrade,
+  focus,
 }: {
   theme: Theme;
   session: StudySession;
@@ -32,17 +35,28 @@ export function Encounter({
   onRegroup: () => void;
   onNotes: () => void;
   onFinish: () => void;
+  onGrade?: (answer: number) => Promise<GradedAnswer>;
+  focus?: string;
 }) {
   const boss = index === session.content.quiz.length;
   const character = getCharacter(theme, index, boss);
   const lesson = [
     character.introduction,
-    ...getLessonLines(session, index, boss),
+    ...(boss && focus
+      ? [
+          `Let's spend a little more time on ${focus}. Explain how it works and connect it to another concept.`,
+        ]
+      : getLessonLines(session, index, boss)),
   ];
   const [phase, setPhase] = useState<"talk" | "question" | "feedback">("talk");
   const [line, setLine] = useState(0);
   const [picked, setPicked] = useState<number | null>(null);
   const [passed, setPassed] = useState(false);
+  const [graded, setGraded] = useState<GradedAnswer | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [gradeError, setGradeError] = useState("");
+  const grading = useRef(false);
+  const resolved = passed || graded !== null;
   const [bossChecks, setBossChecks] = useState(0);
   const options = useRef<HTMLDetailsElement>(null);
   useEffect(() => {
@@ -74,9 +88,31 @@ export function Encounter({
     }
   }
   const question = session.content.quiz[index];
-  const correct = !boss && picked === question.answer;
-  function checkAnswer(answer: number) {
-    if (phase !== "question" || !question) return;
+  const correct = graded ? graded.correct : !boss && picked === question.answer;
+  async function checkAnswer(answer: number) {
+    if (phase !== "question" || !question || grading.current) return;
+    if (onGrade) {
+      grading.current = true;
+      setBusy(true);
+      setGradeError("");
+      try {
+        const result = await onGrade(answer);
+        setPicked(result.choice);
+        setGraded(result);
+        setPassed(result.correct);
+        setPhase("feedback");
+      } catch (error) {
+        setGradeError(
+          error instanceof Error
+            ? error.message
+            : "Could not check your answer. Try again.",
+        );
+      } finally {
+        grading.current = false;
+        setBusy(false);
+      }
+      return;
+    }
     setPicked(answer);
     onAnswer(answer);
     setPhase("feedback");
@@ -86,14 +122,16 @@ export function Encounter({
     } else onMistake();
   }
   function fight() {
-    if (!passed && phase !== "question") {
+    if (!resolved && phase !== "question") {
       setPhase("question");
       setPicked(null);
     }
   }
-  const feedback = correct
-    ? character.correct
-    : `${character.incorrect} ${question?.explanation ?? `The correct answer is “${question?.options[question.answer]}”. Use your ${worlds[theme].book.toLowerCase()} to revisit the reasoning.`}`;
+  const feedback = graded
+    ? `${correct ? character.correct : character.incorrect} ${graded.explanation}`
+    : correct
+      ? character.correct
+      : `${character.incorrect} ${question?.explanation ?? `The correct answer is “${question?.options[question.answer]}”. Use your ${worlds[theme].book.toLowerCase()} to revisit the reasoning.`}`;
   return (
     <div className="encounter-shell">
       <div className="encounter-topline">
@@ -110,6 +148,7 @@ export function Encounter({
           </summary>
           <div className="encounter-dropdown">
             <button
+              disabled={busy}
               onClick={() => {
                 closeOptions();
                 if (boss && phase === "question") onNotes();
@@ -123,6 +162,7 @@ export function Encounter({
               Review lesson
             </button>
             <button
+              disabled={busy}
               onClick={() => {
                 closeOptions();
                 onNotes();
@@ -132,6 +172,7 @@ export function Encounter({
               Open {worlds[theme].book.toLowerCase()}
             </button>
             <button
+              disabled={busy}
               onClick={() => {
                 closeOptions();
                 onLeave();
@@ -189,7 +230,7 @@ export function Encounter({
               actionLabel={
                 line < lesson.length - 1
                   ? "Continue"
-                  : passed
+                  : resolved
                     ? "Return to trail"
                     : boss
                       ? "Explain the concept"
@@ -198,7 +239,7 @@ export function Encounter({
               onContinue={() =>
                 line < lesson.length - 1
                   ? setLine((value) => value + 1)
-                  : passed
+                  : resolved
                     ? onContinue()
                     : fight()
               }
@@ -226,6 +267,7 @@ export function Encounter({
                 <button
                   key={optionIndex}
                   className="combat-answer"
+                  disabled={busy}
                   onClick={() => checkAnswer(optionIndex)}
                 >
                   <PixelIcon name="heart" size={14} />
@@ -234,13 +276,21 @@ export function Encounter({
               ))}
             </div>
             <p className="answer-instruction">
-              Choose an answer to make your move.
+              {busy
+                ? "Checking your answer…"
+                : "Choose an answer to make your move."}
             </p>
+            {gradeError && (
+              <p className="error-feedback" role="alert">
+                {gradeError}
+              </p>
+            )}
           </section>
         )}
         {phase === "question" && boss && (
           <BossChallenge
             session={session}
+            focus={focus}
             onComplete={onFinish}
             onProgress={setBossChecks}
           />
@@ -254,7 +304,7 @@ export function Encounter({
               {correct
                 ? "A GOOD CONNECTION. THE WAY OPENS."
                 : hp === 0
-                  ? "TAKE A BREATH. YOU CAN TRY AGAIN."
+                  ? "TAKE A BREATH. REVIEW WHAT YOU LEARNED."
                   : "A MISSED MOVE. A CHANCE TO LEARN."}
             </div>
             <DialogueBox
@@ -262,14 +312,18 @@ export function Encounter({
               speaker={character.name}
               text={feedback}
               actionLabel={
-                correct
-                  ? "Continue"
-                  : hp === 0
-                    ? "Regroup at the trail"
-                    : "Try again"
+                graded
+                  ? hp === 0
+                    ? "Review your adventure"
+                    : "Continue"
+                  : correct
+                    ? "Continue"
+                    : hp === 0
+                      ? "Regroup at the trail"
+                      : "Try again"
               }
               onContinue={() => {
-                if (correct) onContinue();
+                if (graded || correct) onContinue();
                 else if (hp === 0) onRegroup();
                 else {
                   setPicked(null);

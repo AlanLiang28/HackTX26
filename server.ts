@@ -1,13 +1,18 @@
-// Backend: keeps keys safe, talks to Gemini and Tiger Data, serves the built site.
+// Backend: keeps keys safe, talks to Meta Muse and Tiger Data, serves the built site.
 // Dev:  npx tsx watch server.ts
 import express from "express";
 import path from "node:path";
 import pg from "pg";
-import { GoogleGenAI } from "@google/genai";
+import { gameRouter } from "./game-routes.ts";
+import { generateText, parseJsonLoose, LlmError } from "./llm.ts";
 
 process.loadEnvFile();
 
 const app = express();
+
+// Battle mode. Mounted BEFORE express.json() because it brings its own JSON parser.
+app.use("/api/game", gameRouter);
+
 app.use(express.json());
 
 // ---- Tiger Data ----
@@ -16,37 +21,7 @@ const db = new pg.Pool({
   ssl: { rejectUnauthorized: false },
 });
 
-// ---- Gemini ----
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-const MODEL = process.env.GEMINI_MODEL ?? "gemini-3.5-flash";
-const FALLBACK_MODEL = process.env.GEMINI_FALLBACK_MODEL; // optional backup model
-
-const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-// Call Gemini, retrying when Google is busy (503/429/500) and falling back to a backup model
-async function generateWithRetry(prompt: string) {
-  const models = [MODEL, FALLBACK_MODEL].filter(Boolean) as string[];
-  let lastError: unknown;
-
-  for (const model of models) {
-    for (let attempt = 1; attempt <= 3; attempt++) {
-      try {
-        return await ai.models.generateContent({
-          model,
-          contents: prompt,
-          config: { responseMimeType: "application/json" },
-        });
-      } catch (err) {
-        lastError = err;
-        const status = (err as { status?: number }).status;
-        console.warn(`Gemini ${model} attempt ${attempt} failed (status ${status})`);
-        if (status !== 503 && status !== 429 && status !== 500) break; // not a "busy" error: try next model
-        await wait(attempt * 1500); // wait a bit longer each time
-      }
-    }
-  }
-  throw lastError;
-}
+// ---- Model: Meta Muse (see llm.ts) ----
 
 function buildPrompt(topic: string, interest: string, level: string) {
   return `You are a friendly tutor who explains things using analogies from the student's interests.
@@ -84,8 +59,7 @@ app.post("/api/explain", async (req, res) => {
   const lvl = level || "high school";
 
   try {
-    const response = await generateWithRetry(buildPrompt(topic, interest, lvl));
-    const content = JSON.parse(response.text ?? "{}");
+    const content = parseJsonLoose(await generateText(buildPrompt(topic, interest, lvl)));
 
     await db.query(
       "INSERT INTO explanations (topic, interest, level, content) VALUES ($1, $2, $3, $4)",
@@ -95,12 +69,9 @@ app.post("/api/explain", async (req, res) => {
     res.json({ topic, interest, level: lvl, content });
   } catch (err) {
     console.error(err);
-    const status = (err as { status?: number }).status;
-    const message =
-      status === 503 || status === 429
-        ? "The AI is very busy right now. Please try again in a moment."
-        : "Something went wrong generating the explanation. Try again.";
-    res.status(500).json({ error: message });
+    res.status(500).json({
+      error: err instanceof LlmError ? err.message : "Something went wrong generating the explanation. Try again.",
+    });
   }
 });
 
