@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import Game, { type GameMaterial } from "./Game.tsx";
 
 // ---- Types: the shape of the data from the server ----
 type Mapping = { concept: string; analogy: string; explanation: string };
@@ -12,6 +13,9 @@ type Content = {
 };
 type Session = { created_at?: string; topic: string; interest: string; level: string; content: Content };
 type Stat = { day: string; sessions: number };
+type UploadedFile = { name: string; kind: "text" | "pdf"; content: string }; // pdf content is base64
+
+const MAX_FILE_BYTES = 10 * 1024 * 1024;
 
 const interestIdeas = ["Football", "Basketball", "Minecraft", "Cooking", "Music", "Marvel movies"];
 
@@ -25,6 +29,9 @@ export default function App() {
   const [error, setError] = useState("");
   const [history, setHistory] = useState<Session[]>([]);
   const [stats, setStats] = useState<Stat[]>([]);
+  const [view, setView] = useState<"learn" | "game">("learn");
+  const [files, setFiles] = useState<UploadedFile[]>([]);
+  const [fileError, setFileError] = useState("");
 
   async function loadSidebar() {
     try {
@@ -71,6 +78,34 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
+  async function addFiles(list: FileList | null) {
+    if (!list) return;
+    setFileError("");
+    const added: UploadedFile[] = [];
+    for (const file of Array.from(list)) {
+      const lower = file.name.toLowerCase();
+      if (file.size > MAX_FILE_BYTES) {
+        setFileError(`${file.name} is over 10 MB.`);
+      } else if (lower.endsWith(".pdf")) {
+        setFileError(`${file.name}: PDFs aren't supported yet. Paste the text instead, or use a .txt or .md file.`);
+      } else if (lower.endsWith(".txt") || lower.endsWith(".md")) {
+        added.push({ name: file.name, kind: "text", content: await file.text() });
+      } else {
+        setFileError(`${file.name} isn't supported yet. Use .txt or .md.`);
+      }
+    }
+    setFiles((prev) => [...prev, ...added]);
+  }
+
+  const material: GameMaterial = {
+    text: files
+      .filter((f) => f.kind === "text")
+      .map((f) => `--- ${f.name} ---\n${f.content}`)
+      .join("\n\n"),
+    pdfs: files.filter((f) => f.kind === "pdf").map((f) => ({ name: f.name, data: f.content })),
+  };
+  const hasMaterial = material.text.length > 0 || material.pdfs.length > 0;
+
   const card: React.CSSProperties = {
     background: "#ffffff",
     color: "#1a1a1a",
@@ -89,6 +124,14 @@ export default function App() {
     marginBottom: 12,
   };
   const maxSessions = Math.max(1, ...stats.map((s) => s.sessions));
+
+  if (view === "game") {
+    return (
+      <div style={{ minHeight: "100vh", background: "#f2f4f8", padding: 20, boxSizing: "border-box" }}>
+        <Game topic={topic} interest={interest} level={level} material={material} onExit={() => setView("learn")} />
+      </div>
+    );
+  }
 
   return (
     <div style={{ minHeight: "100vh", background: "#f2f4f8", fontFamily: "system-ui, sans-serif", padding: 20 }}>
@@ -121,6 +164,32 @@ export default function App() {
                 </button>
               ))}
             </div>
+            <label>Upload notes (optional)</label>
+            <input
+              type="file"
+              accept=".txt,.md"
+              multiple
+              onChange={(e) => {
+                void addFiles(e.target.files);
+                e.target.value = "";
+              }}
+              style={{ ...input, padding: 8 }}
+            />
+            {files.length > 0 && (
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: -4, marginBottom: 12 }}>
+                {files.map((f, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setFiles(files.filter((_, j) => j !== i))}
+                    style={{ fontSize: 13, padding: "4px 10px", borderRadius: 999 }}
+                    title="Remove file"
+                  >
+                    {f.name} ✕
+                  </button>
+                ))}
+              </div>
+            )}
+            {fileError && <p style={{ color: "#c62828", marginTop: -4 }}>{fileError}</p>}
             <label>Level</label>
             <select value={level} onChange={(e) => setLevel(e.target.value)} style={input}>
               <option>middle school</option>
@@ -133,6 +202,13 @@ export default function App() {
               style={{ padding: "12px 20px", fontSize: 16, borderRadius: 8, background: "#4f46e5", color: "white", border: "none" }}
             >
               {loading ? "Building your analogy..." : "Explain it my way ✨"}
+            </button>
+            <button
+              onClick={() => setView("game")}
+              disabled={(!topic.trim() && !hasMaterial) || !interest.trim()}
+              style={{ padding: "12px 20px", fontSize: 16, borderRadius: 8, marginLeft: 8 }}
+            >
+              Battle mode ⚔️
             </button>
             {error && <p style={{ color: "#c62828" }}>{error}</p>}
           </div>

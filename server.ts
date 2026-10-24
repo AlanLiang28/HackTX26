@@ -1,13 +1,18 @@
-// Backend: keeps keys safe, talks to Gemini and Tiger Data, serves the built site.
+// Backend: keeps keys safe, talks to Meta Muse and Tiger Data, serves the built site.
 // Dev:  npx tsx watch server.ts
 import express from "express";
 import path from "node:path";
 import pg from "pg";
-import { GoogleGenAI } from "@google/genai";
+import { gameRouter } from "./game-routes.ts";
+import { generateText, parseJsonLoose, LlmError } from "./llm.ts";
 
 process.loadEnvFile();
 
 const app = express();
+
+// Battle mode. Mounted BEFORE express.json() because it brings its own JSON parser.
+app.use("/api/game", gameRouter);
+
 app.use(express.json());
 
 // ---- Tiger Data ----
@@ -16,9 +21,7 @@ const db = new pg.Pool({
   ssl: { rejectUnauthorized: false },
 });
 
-// ---- Gemini ----
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-const MODEL = process.env.GEMINI_MODEL ?? "gemini-3.5-flash";
+// ---- Model: Meta Muse (see llm.ts) ----
 
 function buildPrompt(topic: string, interest: string, level: string) {
   return `You are a friendly tutor who explains things using analogies from the student's interests.
@@ -56,12 +59,7 @@ app.post("/api/explain", async (req, res) => {
   const lvl = level || "high school";
 
   try {
-    const response = await ai.models.generateContent({
-      model: MODEL,
-      contents: buildPrompt(topic, interest, lvl),
-      config: { responseMimeType: "application/json" },
-    });
-    const content = JSON.parse(response.text ?? "{}");
+    const content = parseJsonLoose(await generateText(buildPrompt(topic, interest, lvl)));
 
     await db.query(
       "INSERT INTO explanations (topic, interest, level, content) VALUES ($1, $2, $3, $4)",
@@ -71,7 +69,9 @@ app.post("/api/explain", async (req, res) => {
     res.json({ topic, interest, level: lvl, content });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Something went wrong generating the explanation. Try again." });
+    res.status(500).json({
+      error: err instanceof LlmError ? err.message : "Something went wrong generating the explanation. Try again.",
+    });
   }
 });
 
