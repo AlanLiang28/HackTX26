@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import CoachVoice from "./Coachvoice";
+import CoachVoice from "./CoachVoice";
 
 // ---- Types: the shape of the data from the server ----
 type Mapping = { concept: string; analogy: string; explanation: string };
