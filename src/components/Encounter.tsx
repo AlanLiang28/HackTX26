@@ -87,7 +87,7 @@ export function Encounter({
           <h1>{character.name}</h1>
         </div>
         <div className="combat-character">
-          <PixelSprite kind={character.sprite} monochrome />
+          <PixelSprite kind={character.sprite} />
           <span className="combat-ground" />
           <span className="combat-particle particle-one">✦</span>
           <span className="combat-particle particle-two">·</span>

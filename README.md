@@ -37,7 +37,7 @@ The project uses its existing SVG pixel-grid art system, with deliberately simpl
 - **Fantasy:** Mossby the slime, Sir Clanks the knight, Wisp the mage, Professor Ember the dragon.
 - **Sports:** Rookie Reed, Coach Dash, Coach Cross, Coach Stone.
 
-Character art is in `src/components/PixelSprite.tsx`; personalities and lesson assignment are in `src/lib/characters.ts`. Battle sprites use a monochrome palette, crisp square pixels, dialogue boxes, heart cursors, and a four-action menu. No external character image requests are needed.
+Character art is in `src/components/PixelSprite.tsx`; personalities and lesson assignment are in `src/lib/characters.ts`. Characters retain their colors during battles, alongside crisp square pixels, monochrome dialogue boxes, heart cursors, and a four-action menu. No external character image requests are needed.
 
 ## Backend handoff
 
