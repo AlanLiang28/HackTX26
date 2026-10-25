@@ -18,10 +18,11 @@ const MAX_MATERIAL = 20000;      // same cap as the notes screen
 const THEMES = ["sports", "fantasy"] as const;
 type Theme = (typeof THEMES)[number];
 
-// Calibration knobs for topic matching, measured on gemini-embedding-001 (768-d) over subtopic names:
-// unrelated subjects score 0.73-0.78 cosine, related ones (cells vs photosynthesis) 0.79, the same subject 0.92.
-export const TOPIC_UNRELATED = 0.75;
-export const TOPIC_SAME = 0.95;
+// Calibration knobs for topic matching, measured on gemini-embedding-001 (768-d) over real study notes:
+// unrelated subjects score 0.68-0.77 cosine, related ones (cells vs photosynthesis) 0.83,
+// the same field (data structures vs algorithms) 0.88, and two people's notes on the same subject 0.91.
+export const TOPIC_UNRELATED = 0.77;
+export const TOPIC_SAME = 0.92;
 export const topicScore = (cosine: number) =>
   Math.min(1, Math.max(0, (cosine - TOPIC_UNRELATED) / (TOPIC_SAME - TOPIC_UNRELATED)));
 
@@ -116,13 +117,13 @@ export function classRouter({ db, ai }: { db: pg.Pool; ai: GoogleGenAI }) {
     return pending.get(key)!;
   }
 
-  // Embeds the subtopic names, not the themed title or lessons, so a knight and a quarterback studying
-  // the same notes still match. Null on failure: that free agent is then matched on interests only.
-  async function embedTopic(pack: Pack): Promise<string | null> {
+  // Embeds the player's own notes, not the pack: the model themes even subtopic names ("Thylakoid Blitz
+  // Drive"), which would match players by world instead of subject. Null on failure: interests only.
+  async function embedTopic(material: string): Promise<string | null> {
     try {
       const r = await ai.models.embedContent({
         model: EMBED_MODEL,
-        contents: pack.subtopics.map((s) => s.name).join(", "),
+        contents: material.slice(0, 8000), // the model reads ~2k tokens
         config: { outputDimensionality: 768, taskType: "SEMANTIC_SIMILARITY" },
       });
       const values = r.embeddings?.[0]?.values;
@@ -142,7 +143,7 @@ export function classRouter({ db, ai }: { db: pg.Pool; ai: GoogleGenAI }) {
   // ponytail: loads the whole pool on every poll; filter in SQL once free agents number in the thousands.
   const roster = async (q: pg.Pool | pg.PoolClient, classId: string | null, viewerId = "") => (await q.query<MemberRow>(
     `SELECT m.id, m.name, m.interests, m.theme, m.ready_at IS NOT NULL AS ready, m.session_id, m.player_id,
-            m.joined_at > NOW() - INTERVAL '3 hours' AS recent,
+            COALESCE(m.ready_at, m.joined_at) > NOW() - INTERVAL '3 hours' AS recent,
             1 - (m.topic_embedding <=> v.topic_embedding) AS topic,
             s.share_code AS group_code, s.theme AS group_theme, s.content->>'host' AS group_host,
             f.session_id IS NOT NULL AS boss_started
@@ -161,7 +162,7 @@ export function classRouter({ db, ai }: { db: pg.Pool; ai: GoogleGenAI }) {
     const group = all.filter((m) => me.session_id && m.session_id === me.session_id);
     const open = !me.boss_started && group.length < MAX_GROUP;
     // Grouped players can add ungrouped ones; ungrouped ones can also join a group with room.
-    // Free agents are only suggested for 3 hours after signing up, the lifetime of their phase 1 game.
+    // Free agents are suggested for 3 hours after their latest progress (signing up, then reaching the boss).
     const candidates = open ? all.filter((m) => m.id !== me.id && (cls || m.recent) && (me.session_id
       ? !m.session_id
       : !m.session_id || (size(m.session_id) < MAX_GROUP && !m.boss_started))) : [];
@@ -375,7 +376,7 @@ export function classRouter({ db, ai }: { db: pg.Pool; ai: GoogleGenAI }) {
     }
     const { rows: [m] } = await db.query(
       "INSERT INTO class_members (name, interests, theme, pack, topic_embedding) VALUES ($1, $2, $3, $4, $5) RETURNING id",
-      [name, interests, theme, pack, await embedTopic(pack)]);
+      [name, interests, theme, pack, await embedTopic(material)]);
     res.json({ memberId: m.id, ...createGame(pack, name, logAnswers(null, m.id)) });
   });
 

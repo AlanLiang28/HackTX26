@@ -118,11 +118,11 @@ A free agent is a player who isn't in a class. They bring their own notes, play 
 3. `GET /api/free-agents/:memberId` returns the same `{ member, group, matches }` view as the class version. Poll it about every 3 seconds while matching.
 4. `POST /api/free-agents/groups` takes `{ "memberId": "<me>", "partnerId": "<match.memberId>" }` and has the same rules and errors as class groups.
 
-**Ranking:** `score = (interest overlap + topic) / 2`. `topic` (0 to 1) is how close the two players' subjects are. It compares embeddings of their subtopic names (Gemini `gemini-embedding-001`, stored in pgvector). The theme isn't part of it, so a Sports player and a Fantasy player studying the same notes still match. Measured: the same subject in different words scores about 0.86, related subjects (cells vs photosynthesis) about 0.2, and unrelated ones 0. If the embedding call fails at signup, that player's `topic` is `null` and they're ranked on interests only. To tune it, adjust `TOPIC_UNRELATED` and `TOPIC_SAME` in `classes.ts`.
+**Ranking:** `score = (interest overlap + topic) / 2`. `topic` (0 to 1) is how close the two players' subjects are. It compares embeddings of the players' own notes (Gemini `gemini-embedding-001`, stored in pgvector). The theme isn't part of it, so a Sports player and a Fantasy player studying the same subject still match. Measured on real notes: two people's notes on the same subject score about 0.93, the same field (data structures vs algorithms) about 0.7, related subjects (cells vs photosynthesis) about 0.4, and unrelated ones 0. If the embedding call fails at signup, that player's `topic` is `null` and they're ranked on interests only. To tune it, adjust `TOPIC_UNRELATED` and `TOPIC_SAME` in `classes.ts`.
 
 **Whose notes the group plays:** the boss uses the pack of the player who **started the group** (the one who sent `memberId` when neither was grouped). Key concepts are still the group's weakest subtopics, from whoever answered questions on that pack. Topic matching is what makes a shared pack fair.
 
-**Freshness:** free agents are suggested for 3 hours after signing up, which is how long a phase 1 game lives. After that they can still use their own routes, but they no longer appear in other players' matches.
+**Freshness:** free agents are suggested for 3 hours after their latest progress, meaning signing up or reaching the boss. After that they can still use their own routes, but they no longer appear in other players' matches.
 
 ### Then: the boss fight
 
@@ -139,6 +139,15 @@ Use `group.code` and `group.playerId` with the routes in `docs/part3-boss-fight.
 | `boss_attempts` | Existing hypertable. Each group's boss attempts. |
 
 Run `npx tsx setup-db.ts` once. It's idempotent, and it enables the `vector` extension. Embeddings use `GEMINI_API_KEY` (and `GEMINI_EMBED_MODEL` to override the model).
+
+## Demo data
+
+`npx tsx seed-demo.ts` seeds synthetic data, and `--clean` removes it:
+
+- 4 professors and their classes. Codes are `BIO101`, `CS1332`, `ECO304`, and `HIS315`, and teacher tokens are `demo-<code in lowercase>`.
+- 50 students and 18 free agents, with phase 1 answers, groups, and boss fights that are not started, in progress, or defeated.
+
+It prints a cheat sheet of personas and their ids. The ids stay the same across re-runs. Re-run it shortly before recording, because free agents drop out of suggestions 3 hours after their latest progress. Game packs come from the real model once and are cached in `seed-demo-packs.json`, so re-runs make no model calls.
 
 ## Out of scope
 
