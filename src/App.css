@@ -649,6 +649,20 @@
   color: #5e7650;
   font: 500 15px/1.5 "Pixelify Sans", monospace;
 }
+/* Estimated mode: the fill and runner follow --progress (0-1) instead of looping. */
+.content-progress.estimated .content-progress-fill {
+  animation: none;
+  clip-path: inset(0 calc((1 - var(--progress)) * 100%) 0 0);
+  transition: clip-path 0.2s linear;
+}
+.content-progress.estimated .content-progress-runner {
+  animation: none;
+  left: calc((100% - 48px) * var(--progress));
+  transition: left 0.2s linear;
+}
+.content-progress-percent {
+  color: #87aa64;
+}
 @keyframes content-progress-run {
   to { left: calc(100% - 48px); }
 }

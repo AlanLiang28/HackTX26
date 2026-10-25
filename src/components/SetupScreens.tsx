@@ -141,6 +141,15 @@ export function WorldScreen({
   );
 }
 
+// What the loading bar says while the game is built, in order.
+const BUILD_STAGES = [
+  "Reading your notes…",
+  "Picking the key concepts…",
+  "Designing your opponents…",
+  "Writing your questions…",
+  "Almost ready…",
+];
+
 export function MaterialsScreen({
   theme,
   notes,
@@ -238,8 +247,12 @@ export function MaterialsScreen({
         />
         {reading || loading ? (
           <ContentProgress
+            // A fresh bar (from 0%) when reading a file turns into building the game.
+            key={reading ? "reading" : "building"}
             sprite={worlds[theme].guideSprite}
             label={reading ? "Reading your notes…" : "Building your adventure…"}
+            // Building a game takes Muse about 25-35 s (measured); the bar is an estimate, not real progress.
+            {...(!reading && { expectedMs: 30_000, stages: BUILD_STAGES })}
           />
         ) : tab === "upload" ? (
           <button
