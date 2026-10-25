@@ -12,10 +12,15 @@ import { generateText, parseJsonLoose, LlmError } from "./llm.ts";
 import { bossRouter } from "./boss.ts";
 import { classRouter } from "./classes.ts";
 import { friendRouter } from "./friends.ts";
+import { sitePassword } from "./site-password.ts";
 
 process.loadEnvFile();
 
 const app = express();
+
+// ---- Site password (SITE_PASSWORD in .env) ----
+// First, so locked-out visitors reach nothing: no pages, no API, and no rate-limit counts.
+app.use(sitePassword(process.env.SITE_PASSWORD));
 
 // ---- Abuse protection for the AI routes ----
 // Registered before the game router so /api/game/start is limited too.
