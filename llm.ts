@@ -5,6 +5,7 @@
 //   GEMINI_API_KEY=...
 //   GEMINI_FALLBACK_API_KEY=...   (optional; a second key, used when GEMINI_API_KEY is out of quota)
 //   GEMINI_MODEL=gemini-3.5-flash  (optional)
+//   GEMINI_FALLBACK_MODEL=gemini-3.5-flash-lite  (optional; used when GEMINI_MODEL is overloaded)
 import { GoogleGenAI } from "@google/genai";
 
 // Env is read lazily: ESM hoists imports, so process.loadEnvFile() in server.ts runs after this file loads.
@@ -38,17 +39,33 @@ async function retryOnOverload<T>(call: (ai: GoogleGenAI) => Promise<T>, ai: Goo
 
 // Quotas belong to the key's Google Cloud project: when GEMINI_API_KEY is out (429), retry with
 // GEMINI_FALLBACK_API_KEY. A backup key from the same project shares the quota and won't help.
-export async function withGeminiFallback<T>(call: (ai: GoogleGenAI) => Promise<T>): Promise<T> {
+// Overload (503) is per model, not per key: under high demand Google refuses heavy requests to a model
+// on every key, so after the retry the call moves to GEMINI_FALLBACK_MODEL, a lighter model that is
+// usually still taking requests. call must use the model it's given.
+export const fallbackModelName = () => process.env.GEMINI_FALLBACK_MODEL ?? "gemini-3.5-flash-lite";
+
+export async function withGeminiFallback<T>(call: (ai: GoogleGenAI, model: string) => Promise<T>): Promise<T> {
   const keys = [...new Set([apiKey(), process.env.GEMINI_FALLBACK_API_KEY].filter((k): k is string => !!k))];
   if (!keys.length) throw new LlmError("Server is missing GEMINI_API_KEY. Add it to .env and restart the server.");
-  for (let i = 0; ; i++) {
-    try {
-      return await retryOnOverload(call, clientFor(keys[i]));
-    } catch (e) {
-      if (statusOf(e) !== 429 || i === keys.length - 1) throw e;
-      console.warn("GEMINI_API_KEY is out of quota; trying GEMINI_FALLBACK_API_KEY.");
+  const models = [...new Set([modelName(), fallbackModelName()])];
+  for (const [m, model] of models.entries()) {
+    for (const [k, key] of keys.entries()) {
+      try {
+        return await retryOnOverload((ai) => call(ai, model), clientFor(key));
+      } catch (e) {
+        if (statusOf(e) === 429 && k < keys.length - 1) {
+          console.warn("GEMINI_API_KEY is out of quota; trying GEMINI_FALLBACK_API_KEY.");
+          continue;
+        }
+        if (statusOf(e) === 503 && m < models.length - 1) {
+          console.warn(`Gemini ${model} is overloaded; trying ${models[m + 1]}.`);
+          break;
+        }
+        throw e;
+      }
     }
   }
+  throw new LlmError("No Gemini model answered. Try again.");
 }
 
 export function messageForError(status: number, detail: string): string {
@@ -63,7 +80,7 @@ export function messageForError(status: number, detail: string): string {
 }
 
 // Runs a text call with the key fallback, turning API failures into messages safe to show the player.
-async function textCall(run: (ai: GoogleGenAI) => Promise<string | undefined>): Promise<string> {
+async function textCall(run: (ai: GoogleGenAI, model: string) => Promise<string | undefined>): Promise<string> {
   if (!apiKey()) throw new LlmError("Server is missing GEMINI_API_KEY. Add it to .env and restart the server.");
 
   let text: string | undefined;
@@ -84,15 +101,26 @@ const config = { maxOutputTokens: 16000 };
 
 // Send one prompt, get the model's text back.
 export function generateText(prompt: string): Promise<string> {
-  return textCall(async (ai) => (await ai.models.generateContent({ model: modelName(), contents: prompt, config })).text);
+  return textCall(async (ai, model) => (await ai.models.generateContent({ model, contents: prompt, config })).text);
+}
+
+// Reads a PDF's text, so uploaded PDFs become plain study material like TXT and Markdown files.
+export function pdfText(pdf: Buffer): Promise<string> {
+  return textCall(async (ai, model) => (await ai.models.generateContent({
+    model, config,
+    contents: [
+      { inlineData: { mimeType: "application/pdf", data: pdf.toString("base64") } },
+      { text: "Return the text of this PDF as Markdown. Keep headings, lists and tables; skip page numbers, headers and footers. Return only the text." },
+    ],
+  })).text);
 }
 
 // Like generateText, but calls onProgress with the text so far as it streams in, so callers can act on
 // the start of a long answer early. After a retry (backup key, overload) the text starts over.
 export function streamText(prompt: string, onProgress: (textSoFar: string) => void): Promise<string> {
-  return textCall(async (ai) => {
+  return textCall(async (ai, model) => {
     let soFar = "";
-    for await (const chunk of await ai.models.generateContentStream({ model: modelName(), contents: prompt, config })) {
+    for await (const chunk of await ai.models.generateContentStream({ model, contents: prompt, config })) {
       soFar += chunk.text ?? "";
       onProgress(soFar);
     }

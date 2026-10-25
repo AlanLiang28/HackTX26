@@ -220,7 +220,7 @@ export function MaterialsScreen({
           className="visually-hidden"
           tabIndex={-1}
           type="file"
-          accept=".txt,.md,text/plain,text/markdown"
+          accept=".pdf,.txt,.md,application/pdf,text/plain,text/markdown"
           disabled={loading}
           onChange={(event) => {
             void readFile(event.target.files?.[0]);

@@ -44,6 +44,13 @@ const PERSONAS: Array<{ match: string[]; persona: string; voice: string; style: 
     voice: "Sadachbia",
     style: "lively, dramatic anime mentor, earnest and encouraging",
   },
+  {
+    // The fantasy world's interest is "fantasy adventures, knights, and dragons" (interestFor in src/lib/adaptive.ts).
+    match: ["fantasy", "wizard", "magic", "dragon", "knight"],
+    persona: "a wise old wizard teaching an apprentice by candlelight in a tower full of spellbooks",
+    voice: "Gacrux",
+    style: "ancient, wise wizard: slow, warm and mysterious, with a twinkle of mischief and dramatic pauses",
+  },
 ];
 
 function pickPersona(interest: string) {
