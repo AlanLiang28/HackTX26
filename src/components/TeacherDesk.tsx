@@ -10,6 +10,7 @@ import { usePolling } from "../lib/usePolling";
 import { readStudyFile } from "../lib/material";
 import { PixelIcon } from "./PixelIcon";
 import { PixelSprite } from "./PixelSprite";
+import { ContentProgress } from "./ContentProgress";
 import { Notice } from "./CommunityScreens";
 
 function CopyButton({ text, label }: { text: string; label: string }) {
@@ -415,7 +416,7 @@ export function TeacherDesk({ onBusy }: { onBusy: (busy: boolean) => void }) {
         <section className="teacher-panel pixel-panel">
           <div className="panel-heading">
             <h2>My classrooms</h2>
-            <PixelSprite kind="astronaut" />
+            <PixelSprite kind="coach" />
           </div>
           {classes.length ? (
             <div className="saved-classes">
@@ -568,7 +569,12 @@ export function TeacherDesk({ onBusy }: { onBusy: (busy: boolean) => void }) {
                     event.target.value = "";
                   }}
                 />
-                {materialTab === "upload" ? (
+                {reading || busy ? (
+                  <ContentProgress
+                    sprite="coach"
+                    label={reading ? "Reading class notes…" : "Creating your classroom…"}
+                  />
+                ) : materialTab === "upload" ? (
                   <button
                     type="button"
                     className={`upload-zone ${dragging ? "dragging" : ""} ${material.trim() ? "has-file" : ""}`}

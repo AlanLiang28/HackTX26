@@ -1,6 +1,6 @@
 # fairytails artwork
 
-Original background assets generated with the built-in ImageGen tool for this project. All final assets are saved in this directory. World cards reuse these images; Space and Cooking are selectable previews with astronaut and chef sprites from `src/components/PixelSprite.tsx`. Their Enter buttons stay on the world picker.
+Original background assets generated with the built-in ImageGen tool for this project. All final assets are saved in this directory. Sports and Fantasy use their matching backgrounds. Space and Cooking are saved concept art and are not offered in the world picker.
 
 Battle backgrounds are original hand-authored SVG pixel art, using a 320 × 180 grid and crisp edges. `fantasy-battle.svg` is a sunlit forest clearing, and `sports-battle.svg` is a football field at sunset. Their `-portrait.svg` variants use a 180 × 320 grid to keep trees, stands, and floodlights visible on narrow screens. They fill the battle viewport while the dialogue stays in solid panels. These assets require no image service or external downloads.
 

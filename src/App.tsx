@@ -86,7 +86,6 @@ export default function App() {
   const [group, setGroup] = useState<Group | null>(null);
   const [teamResult, setTeamResult] = useState<TeamResult | null>(null);
   const [theme, setTheme] = useState<Theme>("fantasy");
-  const [worldPreview, setWorldPreview] = useState<"space" | "cooking" | null>(null);
   const [notes, setNotes] = useState("");
   const [filename, setFilename] = useState("");
   const [loading, setLoading] = useState(false);
@@ -498,7 +497,7 @@ export default function App() {
   }
 
   return (
-    <div className={`app theme-${screen === "world" && worldPreview ? worldPreview : theme} ${inCombat ? "in-combat" : ""}`}>
+    <div className={`app theme-${theme} ${inCombat ? "in-combat" : ""}`}>
       <div className="world-background" aria-hidden="true" />
       <div className="world-wash" aria-hidden="true" />
       <div className="ambient-pixels" aria-hidden="true">
@@ -673,8 +672,6 @@ export default function App() {
         {screen === "world" && (
           <WorldScreen
             theme={theme}
-            preview={worldPreview}
-            onPreview={setWorldPreview}
             onChoose={(next) => {
               setTheme(next);
               chime();

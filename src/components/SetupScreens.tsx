@@ -2,30 +2,12 @@ import { useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { PixelIcon } from "./PixelIcon";
 import { PixelSprite } from "./PixelSprite";
+import { ContentProgress } from "./ContentProgress";
 import { worlds } from "../lib/characters";
 import type { Theme } from "../lib/study";
 
-const upcomingWorlds = [
-  {
-    id: "space",
-    name: "Space",
-    location: "THE STARLIGHT STATION",
-    icon: "rocket",
-    sprite: "astronaut",
-  },
-  {
-    id: "cooking",
-    name: "Cooking",
-    location: "THE COZY KITCHEN",
-    icon: "utensils",
-    sprite: "chef",
-  },
-] as const;
-
 export function WorldScreen({
   theme,
-  preview,
-  onPreview,
   onChoose,
   onContinue,
   busy = false,
@@ -33,18 +15,12 @@ export function WorldScreen({
   context,
 }: {
   theme: Theme;
-  preview: "space" | "cooking" | null;
-  onPreview: (world: "space" | "cooking" | null) => void;
   onChoose: (theme: Theme) => void;
   onContinue: () => void;
   busy?: boolean;
   error?: string;
   context?: string;
 }) {
-  const selected = preview ?? theme;
-  const selectedName = preview
-    ? upcomingWorlds.find((world) => world.id === preview)!.name
-    : worlds[theme].name;
   return (
     <>
       <div className="page-intro">
@@ -58,13 +34,10 @@ export function WorldScreen({
       <div className="world-picker">
         {(["sports", "fantasy"] as Theme[]).map((option) => (
           <button
-            className={`world-card ${selected === option ? "selected" : ""}`}
+            className={`world-card ${theme === option ? "selected" : ""}`}
             key={option}
-            aria-pressed={selected === option}
-            onClick={() => {
-              onPreview(null);
-              onChoose(option);
-            }}
+            aria-pressed={theme === option}
+            onClick={() => onChoose(option)}
             disabled={busy}
           >
             <span className={`world-card-art art-${option}`}>
@@ -72,7 +45,7 @@ export function WorldScreen({
                 {worlds[option].location}
               </span>
               <span className="selection-indicator">
-                {selected === option && <PixelIcon name="check" size={14} />}
+                {theme === option && <PixelIcon name="check" size={14} />}
               </span>
               <span className="world-card-character">
                 <PixelSprite kind={worlds[option].guideSprite} />
@@ -89,43 +62,20 @@ export function WorldScreen({
             </span>
           </button>
         ))}
-        {upcomingWorlds.map((world) => (
-          <button
-            type="button"
-            className={`world-card ${selected === world.id ? "selected" : ""}`}
-            key={world.id}
-            aria-label={world.name}
-            aria-pressed={selected === world.id}
-            onClick={() => onPreview(world.id)}
-            disabled={busy}
-          >
-            <span className={`world-card-art art-${world.id}`}>
-              <span className="world-card-location">{world.location}</span>
-              <span className="selection-indicator">
-                {selected === world.id && <PixelIcon name="check" size={14} />}
-              </span>
-              <span className="world-card-character">
-                <PixelSprite kind={world.sprite} />
-              </span>
-            </span>
-            <span className="world-card-copy">
-              <span className="world-card-title">
-                <PixelIcon name={world.icon} size={22} />
-                {world.name}
-              </span>
-            </span>
-          </button>
-        ))}
       </div>
+      {busy && (
+        <ContentProgress
+          sprite={worlds[theme].guideSprite}
+          label="Preparing your lesson…"
+        />
+      )}
       <div className="world-next">
         <button
           className="primary-button"
-          onClick={() => {
-            if (!preview) onContinue();
-          }}
+          onClick={onContinue}
           disabled={busy}
         >
-          {busy ? "Preparing your lesson…" : `Enter ${selectedName}`}
+          {busy ? "Preparing your lesson…" : `Enter ${worlds[theme].name}`}
           <PixelIcon name="arrow" size={18} />
         </button>
       </div>
@@ -166,7 +116,7 @@ export function MaterialsScreen({
   const [reading, setReading] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   async function readFile(file?: File) {
-    if (!file) return;
+    if (!file || loading || reading) return;
     setReading(true);
     try {
       await onFile(file);
@@ -181,7 +131,11 @@ export function MaterialsScreen({
           What are we <span>learning today?</span>
         </h1>
       </div>
-      <form className="material-panel pixel-panel" onSubmit={onSubmit}>
+      <form
+        className="material-panel pixel-panel"
+        onSubmit={onSubmit}
+        aria-busy={loading || reading}
+      >
         <div className="guide-note">
           <PixelSprite kind={worlds[theme].guideSprite} />
           <div>
@@ -201,6 +155,7 @@ export function MaterialsScreen({
             <button
               type="button"
               className={tab === "upload" ? "active" : ""}
+              disabled={loading || reading}
               onClick={() => setTab("upload")}
             >
               Upload
@@ -208,6 +163,7 @@ export function MaterialsScreen({
             <button
               type="button"
               className={tab === "paste" ? "active" : ""}
+              disabled={loading || reading}
               onClick={() => setTab("paste")}
             >
               Paste text
@@ -221,13 +177,18 @@ export function MaterialsScreen({
           tabIndex={-1}
           type="file"
           accept=".pdf,.txt,.md,application/pdf,text/plain,text/markdown"
-          disabled={loading}
+          disabled={loading || reading}
           onChange={(event) => {
             void readFile(event.target.files?.[0]);
             event.target.value = "";
           }}
         />
-        {tab === "upload" ? (
+        {reading || loading ? (
+          <ContentProgress
+            sprite={worlds[theme].guideSprite}
+            label={reading ? "Reading your notes…" : "Building your adventure…"}
+          />
+        ) : tab === "upload" ? (
           <button
             type="button"
             className={`upload-zone ${dragging ? "dragging" : ""} ${notes.trim() ? "has-file" : ""}`}
@@ -312,7 +273,7 @@ export function MaterialsScreen({
       </form>
       <button
         className="text-button below-back"
-        disabled={loading}
+        disabled={loading || reading}
         onClick={onBack}
       >
         <PixelIcon name="arrowLeft" size={15} />

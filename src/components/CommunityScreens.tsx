@@ -62,7 +62,7 @@ export function StartScreen({
           disabled={busy}
           onClick={() => onSelect("teacher")}
         >
-          <PixelSprite kind="astronaut" />
+          <PixelSprite kind="coach" />
           <h2>Teacher desk</h2>
           <p>Share a lesson. See how it lands.</p>
           <span>

@@ -26,14 +26,6 @@
 .theme-sports .world-background {
   background-image: url("/images/sports-world.png");
 }
-.theme-space .world-background {
-  background-image: url("/images/space-world.png");
-  background-position: center;
-}
-.theme-cooking .world-background {
-  background-image: url("/images/cooking-world.png");
-  background-position: center;
-}
 .world-wash {
   z-index: -2;
   background: linear-gradient(
@@ -308,9 +300,9 @@
   border-bottom: 1px solid #d1d7bf;
 }
 .world-picker {
-  width: min(100%, 1120px);
+  width: min(100%, 760px);
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 20px;
 }
 .world-card {
@@ -357,18 +349,6 @@
     linear-gradient(180deg, transparent 55%, #1d392b77),
     url("/images/fantasy-world.png");
   background-position: 65% 55%;
-}
-.art-space {
-  background-image:
-    linear-gradient(180deg, transparent 55%, #16273f88),
-    url("/images/space-world.png");
-  background-position: center;
-}
-.art-cooking {
-  background-image:
-    linear-gradient(180deg, transparent 55%, #493b2777),
-    url("/images/cooking-world.png");
-  background-position: center;
 }
 .world-card-location {
   position: absolute;
@@ -583,6 +563,89 @@
 }
 .upload-zone.has-file {
   border-style: solid;
+}
+.content-progress {
+  width: min(100%, 420px);
+  margin: 24px auto 20px;
+  padding-top: 64px;
+}
+.content-progress-track {
+  position: relative;
+  height: 13px;
+  border: 2px solid #355a40;
+  background: #e2e9d6;
+  box-shadow: 0 3px 0 #355a4026;
+}
+.content-progress-fill {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    90deg,
+    #87aa64 0 8px,
+    #b5cc84 8px 10px
+  );
+  clip-path: inset(0 100% 0 0);
+  animation: content-progress-fill 3s linear infinite;
+}
+.content-progress-runner {
+  position: absolute;
+  bottom: calc(100% + 3px);
+  left: 0;
+  width: 48px;
+  height: 58px;
+  animation: content-progress-run 3s linear infinite;
+}
+.content-progress-runner .pixel-sprite {
+  width: 48px;
+  height: 58px;
+  animation: content-progress-stride 0.24s steps(2, end) infinite;
+  transform-origin: bottom center;
+  filter: drop-shadow(2px 2px 0 #355a4026);
+}
+.content-progress-runner::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: -5px;
+  width: 4px;
+  height: 3px;
+  background: #9eb47b;
+  box-shadow: -7px 2px 0 #b5cc8466;
+  animation: content-progress-dust 0.24s steps(2, end) infinite;
+}
+.content-progress-label {
+  margin-top: 14px;
+  text-align: center;
+  color: #5e7650;
+  font: 500 15px/1.5 "Pixelify Sans", monospace;
+}
+@keyframes content-progress-run {
+  to { left: calc(100% - 48px); }
+}
+@keyframes content-progress-fill {
+  to { clip-path: inset(0 0 0 0); }
+}
+@keyframes content-progress-stride {
+  0%, 100% { transform: translateY(0) rotate(4deg); }
+  50% { transform: translateY(-4px) rotate(-4deg); }
+}
+@keyframes content-progress-dust {
+  0%, 100% { opacity: 0.25; transform: translateX(0); }
+  50% { opacity: 0.8; transform: translateX(-3px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .content-progress-fill {
+    animation: none;
+    clip-path: inset(0 45% 0 0);
+  }
+  .content-progress-runner {
+    animation: none;
+    left: calc(55% - 24px);
+  }
+  .content-progress-runner .pixel-sprite,
+  .content-progress-runner::after {
+    animation: none;
+  }
 }
 .notes-wrapper {
   position: relative;
@@ -1876,10 +1939,6 @@
   }
 }
 @media (max-width: 1050px) {
-  .world-picker {
-    width: min(100%, 760px);
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
   .site-header {
     width: calc(100% - 44px);
     gap: 16px;

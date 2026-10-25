@@ -37,6 +37,8 @@ The home screen has three entry points, all using the same paper panels, local p
 
 Student adventures retain a **vertical foes list** and the existing character dialogue. Each run has four encounters total: three study encounters with different characters, then the final boss. Live solo rounds have three lives. Missed concepts receive priority in later questions. Every class/free-agent answer is logged by the backend.
 
+File reading and lesson preparation show an animated progress bar with the selected world's sprite running above it. Teacher uploads use the coach. The indicator runs until processing finishes, clears on errors, and respects reduced motion.
+
 Each solo opponent can speak its lesson, with one compact pause/play control. Live voices are prepared and cached as the adventure starts. Generated audio falls back to browser speech when unavailable; the offline demo reads its local lesson without requesting AI. Voice playback stops when leaving the lesson, and the final boss does not read out the concepts being assessed.
 
 The top-right sound control mutes lesson narration, coach audio, recording playback, and game sounds together. Its setting is saved on this device. Unmuting an encounter restarts its current spoken concept.
