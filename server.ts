@@ -4,9 +4,9 @@ import express from "express";
 import path from "node:path";
 import pg from "pg";
 import OpenAI from "openai";
-import { registerCoachRoute } from "./coach.ts";
+import { registerCoachRoute, warmConceptVoice } from "./coach.ts";
 import rateLimit from "express-rate-limit";
-import { gameRouter } from "./game-routes.ts";
+import { gameRouter, onPackConcept } from "./game-routes.ts";
 import { generateText, parseJsonLoose, LlmError } from "./llm.ts";
 import { bossRouter } from "./boss.ts";
 
@@ -68,6 +68,8 @@ app.post(
 
 // Battle mode. Mounted BEFORE express.json() because it brings its own JSON parser.
 app.use("/api/game", gameRouter);
+// Start each concept's voice while the game is still generating, so the first enemy's voice is ready sooner.
+onPackConcept(warmConceptVoice);
 
 app.use(express.json());
 registerCoachRoute(app);

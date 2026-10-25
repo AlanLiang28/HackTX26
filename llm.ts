@@ -62,16 +62,13 @@ function messageForError(status: number, detail: string): string {
   return `Gemini's API had a problem (status ${status}). Try again.`;
 }
 
-// Send one prompt, get the model's text back.
-export async function generateText(prompt: string): Promise<string> {
+// Runs a text call with the key fallback, turning API failures into messages safe to show the player.
+async function textCall(run: (ai: GoogleGenAI) => Promise<string | undefined>): Promise<string> {
   if (!apiKey()) throw new LlmError("Server is missing GEMINI_API_KEY. Add it to .env and restart the server.");
 
   let text: string | undefined;
   try {
-    const r = await withGeminiFallback((ai) =>
-      ai.models.generateContent({ model: modelName(), contents: prompt, config: { maxOutputTokens: 16000 } }),
-    );
-    text = r.text;
+    text = await withGeminiFallback(run);
   } catch (e) {
     const status = statusOf(e);
     console.error("Gemini request failed:", e);
@@ -81,6 +78,26 @@ export async function generateText(prompt: string): Promise<string> {
 
   if (text) return text;
   throw new LlmError("Gemini's API returned an empty answer. Try again.");
+}
+
+const config = { maxOutputTokens: 16000 };
+
+// Send one prompt, get the model's text back.
+export function generateText(prompt: string): Promise<string> {
+  return textCall(async (ai) => (await ai.models.generateContent({ model: modelName(), contents: prompt, config })).text);
+}
+
+// Like generateText, but calls onProgress with the text so far as it streams in, so callers can act on
+// the start of a long answer early. After a retry (backup key, overload) the text starts over.
+export function streamText(prompt: string, onProgress: (textSoFar: string) => void): Promise<string> {
+  return textCall(async (ai) => {
+    let soFar = "";
+    for await (const chunk of await ai.models.generateContentStream({ model: modelName(), contents: prompt, config })) {
+      soFar += chunk.text ?? "";
+      onProgress(soFar);
+    }
+    return soFar;
+  });
 }
 
 // Models sometimes wrap JSON in fences or add a sentence around it. Grab the outermost {...}.

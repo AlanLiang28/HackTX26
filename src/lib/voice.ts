@@ -7,6 +7,7 @@ export type CoachReply = { script: string; audioBase64: string | null; mimeType:
 const cache = new Map<string, Promise<CoachReply>>();
 
 // What the coach must cover; also what the browser reads aloud if the voice can't be made.
+// The server starts these voices early (warmConceptVoice in coach.ts), so keep both formats in sync.
 export const conceptFacts = (c: Mapping) => `${c.concept}: like ${c.analogy}. ${c.explanation}`;
 
 // The request body doubles as the cache key.
