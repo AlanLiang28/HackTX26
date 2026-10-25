@@ -1,15 +1,39 @@
-// One place that talks to Gemini for text generation. server.ts, game-routes.ts and boss.ts use it,
+// One place that talks to the text models. server.ts, game-routes.ts, classes.ts and boss.ts use it,
 // so switching models or providers later means editing only this file.
+// Muse (Meta) goes first: games, explanations, boss grading, voice scripts and reading PDFs. If there's no
+// Muse key, or Muse fails, the same request goes to Gemini, with Gemini's own key and model fallbacks.
+// Speech (coach.ts) and class matching embeddings (classes.ts) stay on Gemini: Muse has no models for those.
 //
 // .env:
+//   MUSE_API=...                   (or META_API_KEY; without either, everything uses Gemini)
+//   MUSE_MODEL=muse-spark-1.3      (optional)
 //   GEMINI_API_KEY=...
 //   GEMINI_FALLBACK_API_KEY=...   (optional; a second key, used when GEMINI_API_KEY is out of quota)
 //   GEMINI_MODEL=gemini-3.5-flash  (optional)
 //   GEMINI_FALLBACK_MODEL=gemini-3.5-flash-lite  (optional; used when GEMINI_MODEL is overloaded)
 import { GoogleGenAI } from "@google/genai";
+import OpenAI from "openai";
 
 // Env is read lazily: ESM hoists imports, so process.loadEnvFile() in server.ts runs after this file loads.
 const apiKey = () => process.env.GEMINI_API_KEY;
+const museKey = () => process.env.META_API_KEY ?? process.env.MUSE_API;
+export const museModel = () => process.env.MUSE_MODEL ?? "muse-spark-1.3";
+
+// A stuck Muse call should fall back to Gemini, not leave the player waiting: one retry, then give up.
+let muse: { client: OpenAI; key: string } | null = null;
+function museClient(): OpenAI | null {
+  const key = museKey();
+  if (!key) return null;
+  if (muse?.key !== key)
+    muse = {
+      key,
+      client: new OpenAI({
+        baseURL: "https://api.meta.ai/v1", apiKey: key, maxRetries: 1, timeout: 90_000,
+        fetch: (url, init) => globalThis.fetch(url, init), // looked up per call, so tests can stub it
+      }),
+    };
+  return muse.client;
+}
 export const modelName = () => process.env.GEMINI_MODEL ?? "gemini-3.5-flash";
 
 const clients = new Map<string, GoogleGenAI>();
@@ -97,35 +121,96 @@ async function textCall(run: (ai: GoogleGenAI, model: string) => Promise<string 
   throw new LlmError("Gemini's API returned an empty answer. Try again.");
 }
 
+// Muse first; on any Muse failure or empty answer, the Gemini version of the same request.
+async function museFirst(
+  museRun: (muse: OpenAI, model: string) => Promise<string | null | undefined>,
+  geminiRun: (ai: GoogleGenAI, model: string) => Promise<string | undefined>,
+): Promise<string> {
+  const client = museClient();
+  if (client) {
+    try {
+      const text = await museRun(client, museModel());
+      if (text?.trim()) return text;
+      console.warn("Muse returned an empty answer; trying Gemini.");
+    } catch (e) {
+      console.warn("Muse request failed; trying Gemini:", e);
+    }
+  }
+  return textCall(geminiRun);
+}
+
 const config = { maxOutputTokens: 16000 };
+const user = (prompt: string) => [{ role: "user" as const, content: prompt }];
 
 // Send one prompt, get the model's text back.
 export function generateText(prompt: string): Promise<string> {
-  return textCall(async (ai, model) => (await ai.models.generateContent({ model, contents: prompt, config })).text);
+  return museFirst(
+    async (muse, model) =>
+      (await muse.chat.completions.create({ model, messages: user(prompt), max_completion_tokens: 16000 }))
+        .choices[0]?.message?.content,
+    async (ai, model) => (await ai.models.generateContent({ model, contents: prompt, config })).text,
+  );
+}
+
+// A JSON answer that follows schema (strict JSON Schema, which Muse and Gemini both accept). Boss grading uses it.
+export function generateJson(prompt: string, name: string, schema: Record<string, unknown>): Promise<string> {
+  return museFirst(
+    async (muse, model) =>
+      (await muse.chat.completions.create({
+        model, messages: user(prompt),
+        response_format: { type: "json_schema", json_schema: { name, strict: true, schema } },
+      })).choices[0]?.message?.content,
+    async (ai, model) =>
+      (await ai.models.generateContent({
+        model, contents: prompt, config: { responseMimeType: "application/json", responseJsonSchema: schema },
+      })).text,
+  );
 }
 
 // Reads a PDF's text, so uploaded PDFs become plain study material like TXT and Markdown files.
 export function pdfText(pdf: Buffer): Promise<string> {
-  return textCall(async (ai, model) => (await ai.models.generateContent({
-    model, config,
-    contents: [
-      { inlineData: { mimeType: "application/pdf", data: pdf.toString("base64") } },
-      { text: "Return the text of this PDF as Markdown. Keep headings, lists and tables; skip page numbers, headers and footers. Return only the text." },
-    ],
-  })).text);
+  const ask = "Return the text of this PDF as Markdown. Keep headings, lists and tables; skip page numbers, headers and footers. Return only the text.";
+  const data = pdf.toString("base64");
+  return museFirst(
+    async (muse, model) =>
+      (await muse.chat.completions.create({
+        model, max_completion_tokens: 16000,
+        messages: [{ role: "user", content: [
+          { type: "file", file: { filename: "notes.pdf", file_data: `data:application/pdf;base64,${data}` } },
+          { type: "text", text: ask },
+        ] }],
+      })).choices[0]?.message?.content,
+    async (ai, model) =>
+      (await ai.models.generateContent({
+        model, config, contents: [{ inlineData: { mimeType: "application/pdf", data } }, { text: ask }],
+      })).text,
+  );
 }
 
 // Like generateText, but calls onProgress with the text so far as it streams in, so callers can act on
-// the start of a long answer early. After a retry (backup key, overload) the text starts over.
+// the start of a long answer early. After a retry (Gemini fallback, backup key, overload) the text starts over.
 export function streamText(prompt: string, onProgress: (textSoFar: string) => void): Promise<string> {
-  return textCall(async (ai, model) => {
-    let soFar = "";
-    for await (const chunk of await ai.models.generateContentStream({ model, contents: prompt, config })) {
-      soFar += chunk.text ?? "";
-      onProgress(soFar);
-    }
-    return soFar;
-  });
+  return museFirst(
+    async (muse, model) => {
+      let soFar = "";
+      const stream = await muse.chat.completions.create({
+        model, messages: user(prompt), max_completion_tokens: 16000, stream: true,
+      });
+      for await (const chunk of stream) {
+        soFar += chunk.choices[0]?.delta?.content ?? "";
+        onProgress(soFar);
+      }
+      return soFar;
+    },
+    async (ai, model) => {
+      let soFar = "";
+      for await (const chunk of await ai.models.generateContentStream({ model, contents: prompt, config })) {
+        soFar += chunk.text ?? "";
+        onProgress(soFar);
+      }
+      return soFar;
+    },
+  );
 }
 
 // Models sometimes wrap JSON in fences or add a sentence around it. Grab the outermost {...}.

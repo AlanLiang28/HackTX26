@@ -3,7 +3,7 @@
 import express from "express";
 import type pg from "pg";
 import type OpenAI from "openai";
-import { messageForError, withGeminiFallback } from "./llm.ts";
+import { generateJson, LlmError, messageForError, withGeminiFallback } from "./llm.ts";
 
 export const PASS_MIN_CORRECTNESS = 3;  // out of 4. Correctness gates everything.
 export const PASS_MIN_TOTAL = 11;       // out of 16
@@ -146,11 +146,8 @@ export function bossRouter({ db, muse }: { db: pg.Pool; muse: OpenAI | null }) {
 
   async function grade(c: Concept, level: string | null, transcript: string): Promise<Rubric> {
     const prompt = gradingPrompt(c, level, transcript);
-    const r = await withGeminiFallback((ai, model) => ai.models.generateContent({
-      model, contents: prompt,
-      config: { responseMimeType: "application/json", responseJsonSchema: RUBRIC_SCHEMA },
-    }));
-    const g = JSON.parse(r.text ?? "");
+    // Muse first, Gemini as the backup (llm.ts).
+    const g = JSON.parse(await generateJson(prompt, "rubric", RUBRIC_SCHEMA));
     return {
       correctness: clamp(g.correctness), depth: clamp(g.depth),
       understanding: clamp(g.understanding), clarity: clamp(g.clarity),
@@ -236,10 +233,11 @@ export function bossRouter({ db, muse }: { db: pg.Pool; muse: OpenAI | null }) {
         rubric = await grade(concept, f.session.level, transcript);
       } catch (err) {
         console.error(err);
-        // Gemini errors carry a status (quota, bad key...); say which instead of a generic retry.
+        // Say what went wrong instead of a generic retry: grading errors arrive as LlmError with a
+        // player-safe message; Gemini transcription errors carry a status (quota, bad key...).
         const status = (err as { status?: number }).status;
-        return fail(res, 502, "upstream_failed", typeof status === "number"
-          ? messageForError(status, String((err as Error).message))
+        return fail(res, 502, "upstream_failed", err instanceof LlmError ? err.message
+          : typeof status === "number" ? messageForError(status, String((err as Error).message))
           : "Couldn't reach the grader. Try again.");
       }
       const total = rubric.correctness + rubric.depth + rubric.understanding + rubric.clarity;
