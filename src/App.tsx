@@ -29,6 +29,7 @@ import {
   saveQuest,
 } from "./lib/study";
 import { getCharacter, worlds } from "./lib/characters";
+import { prefetchVoices } from "./lib/voice";
 import type { QuestRecord, StudySession, Theme } from "./lib/study";
 import "./App.css";
 import "./community.css";
@@ -158,12 +159,17 @@ export default function App() {
       /* Audio is optional. */
     }
   }
-  function beginSession(next: StudySession, isDemo: boolean) {
+  function beginSession(
+    next: StudySession,
+    isDemo: boolean,
+    targetTheme: Theme = theme,
+  ) {
     if (isDemo) {
       setAdaptive(null);
       setMember(null);
     }
     setTeamResult(null);
+    setTheme(targetTheme);
     setRemoteEncounter(null);
     setGameError("");
     setSession(next);
@@ -176,6 +182,13 @@ export default function App() {
     saved.current = false;
     setScreen("journey");
     chime();
+    // Make every concept's voice now, so encounters don't wait for it.
+    if (!isDemo)
+      prefetchVoices(
+        next.content.title,
+        interestFor(targetTheme),
+        next.content.mappings,
+      );
   }
   function goHome() {
     setOverlay(null);
@@ -221,6 +234,7 @@ export default function App() {
     beginSession(
       adaptiveStudySession(game, next.class?.name ?? notes, targetTheme),
       false,
+      targetTheme,
     );
   }
   function submitProfile(next: Profile, code: string) {
@@ -434,7 +448,12 @@ export default function App() {
       const state = await restartAdaptiveGame(adaptive);
       const game = { ...adaptive, state };
       setAdaptive(game);
-      beginSession(adaptiveStudySession(game, session.topic, theme), false);
+      const runTheme = member?.theme ?? theme;
+      beginSession(
+        adaptiveStudySession(game, session.topic, runTheme),
+        false,
+        runTheme,
+      );
     } catch (err) {
       setGameError(
         err instanceof Error
@@ -698,6 +717,7 @@ export default function App() {
           <Encounter
             key={`${theme}-${encounter}`}
             theme={theme}
+            localVoice={demo}
             session={session}
             index={encounter}
             hp={hp}

@@ -1,9 +1,10 @@
 // AI voice explanation: Muse writes a script in character, Gemini TTS performs it.
+// Muse needs META_API_KEY (or MUSE_API); without one, Gemini writes the script instead.
 // Add to server.ts:   import { registerCoachRoute } from "./coach";
 //                     registerCoachRoute(app);      (after app.use(express.json(...)))
 import type { Express } from "express";
-import OpenAI from "openai";
 import { GoogleGenAI } from "@google/genai";
+import OpenAI from "openai";
 
 // Who's talking for each theme. voice = a Gemini prebuilt voice name.
 const PERSONAS: Array<{ match: string[]; persona: string; voice: string; style: string }> = [
@@ -61,40 +62,57 @@ const statusOf = (err: unknown) => (err as { status?: number }).status;
 const isBusy = (s?: number) => s === 503 || s === 429 || s === 500;
 
 // ---------- Step 1: Muse writes the speech ----------
-async function writeScript(topic: string, interest: string, facts: string, persona: string) {
-  const muse = new OpenAI({ baseURL: "https://api.meta.ai/v1", apiKey: process.env.MUSE_API });
-
-  const reply = await muse.chat.completions.create({
-    model: process.env.MUSE_MODEL ?? "muse-spark-1.1",
-    messages: [
-      {
-        role: "user",
-        content: `You are ${persona}. Explain this topic to a student, out loud, staying fully in character.
+async function writeScript(topic: string, interest: string, facts: string[], persona: string) {
+  // Shorter speech is faster to generate. One fact = one game concept, so keep it brief.
+  const length =
+    facts.length === 1 ? "70 to 110 words: about 30 seconds spoken" : "150 to 220 words: about one minute spoken";
+  const prompt = `You are ${persona}. Explain this topic to a student, out loud, staying fully in character.
 
 Topic: ${topic}
-${facts ? `Facts you must cover accurately:\n${facts}\n` : ""}
+${facts.length ? `Facts you must cover accurately:\n${facts.join("\n")}\n` : ""}
 Rules:
 - Explain the topic through analogies from ${interest}. Keep every fact accurate.
-- 150 to 220 words: about one minute spoken.
+- ${length}.
 - This is a spoken script: no headings, lists, emojis, markdown, or stage directions in brackets.
 - You may use the tag <short pause> two or three times for dramatic effect.
-- End with a short, punchy line that sums up the key idea.`,
-      },
-    ],
-  });
+- End with a short, punchy line that sums up the key idea.`;
 
-  return reply.choices[0]?.message?.content?.trim() ?? "";
+  const museKey = process.env.META_API_KEY ?? process.env.MUSE_API;
+  if (museKey) {
+    const muse = new OpenAI({ baseURL: "https://api.meta.ai/v1", apiKey: museKey });
+    const reply = await muse.chat.completions.create({
+      model: process.env.MUSE_MODEL ?? "muse-spark-1.1",
+      messages: [{ role: "user", content: prompt }],
+    });
+    return reply.choices[0]?.message?.content?.trim() ?? "";
+  }
+
+  const gemini = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+  const reply = await gemini.models.generateContent({
+    model: process.env.GEMINI_MODEL ?? "gemini-3.5-flash",
+    contents: prompt,
+  });
+  return reply.text?.trim() ?? "";
 }
 
 // ---------- Step 2: Gemini performs it ----------
+// Free-tier TTS allows only a few requests per day per model and key, and a refusal can take ~30 s to arrive.
+// So a model+key that reports its daily limit is skipped for an hour instead of being retried on every voice.
+const usedUpUntil = new Map<string, number>();
+const isDailyLimit = (err: unknown) => statusOf(err) === 429 && /per ?day/i.test(String((err as Error).message));
+
 async function speak(script: string, voice: string, style: string): Promise<string | null> {
-  const gemini = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+  const keys = [...new Set([process.env.GEMINI_API_KEY, process.env.GEMINI_FALLBACK_API_KEY].filter((k): k is string => !!k))];
   const models = [
     process.env.GEMINI_TTS_MODEL ?? "gemini-3.8-flash-tts",
     process.env.GEMINI_TTS_FALLBACK ?? "gemini-3.8-flash-lite-tts",
   ];
 
-  for (const model of models) {
+  // Better model first, on either key, before dropping to the lite model.
+  for (const model of models) for (const [k, apiKey] of keys.entries()) {
+    const slot = `${model}#${k}`;
+    if ((usedUpUntil.get(slot) ?? 0) > Date.now()) continue;
+    const gemini = new GoogleGenAI({ apiKey });
     for (let attempt = 1; attempt <= 2; attempt++) {
       try {
         const interaction = await gemini.interactions.create({
@@ -117,6 +135,11 @@ async function speak(script: string, voice: string, style: string): Promise<stri
         const data = interaction.output_audio?.data;
         if (data) return data; // base64 WAV, 24 kHz mono
       } catch (err) {
+        if (isDailyLimit(err)) {
+          console.warn(`Gemini TTS ${model} (${k ? "backup" : "main"} key) is out of daily quota; skipping it for an hour.`);
+          usedUpUntil.set(slot, Date.now() + 60 * 60 * 1000);
+          break;
+        }
         console.warn(`Gemini TTS ${model} attempt ${attempt} failed (status ${statusOf(err)})`, err);
         if (!isBusy(statusOf(err))) break;
         await wait(1500);
@@ -124,6 +147,55 @@ async function speak(script: string, voice: string, style: string): Promise<stri
     }
   }
   return null; // the page falls back to the browser's voice
+}
+
+// ---------- Voices, shared between early starts and requests ----------
+type Voice = { script: string; audioBase64: string | null; mimeType: string; persona: string };
+const voices = new Map<string, Promise<Voice>>();
+const VOICE_TTL_MS = 30 * 60 * 1000;
+
+function makeVoice(topic: string, interest: string, facts: string[]): Promise<Voice> {
+  const key = JSON.stringify({ topic, interest, facts });
+  let voice = voices.get(key);
+  if (!voice) {
+    voice = (async () => {
+      const p = pickPersona(interest);
+      const script = await writeScript(topic, interest, facts, p.persona);
+      if (!script) throw new Error("Empty script");
+      const audioBase64 = await speak(script, p.voice, p.style);
+      return { script, audioBase64, mimeType: "audio/wav", persona: p.persona };
+    })();
+    voices.set(key, voice);
+    voice.then(
+      // Keep a finished voice a while for the browser to fetch; drop one without audio so a later request retries TTS.
+      (v) => (v.audioBase64 ? setTimeout(() => voices.delete(key), VOICE_TTL_MS).unref() : voices.delete(key)),
+      () => voices.delete(key),
+    );
+  }
+  return voice;
+}
+
+// Early starts run two at a time (like the browser's prefetch) to stay under Gemini TTS per-minute limits.
+const warmQueue: (() => Promise<unknown>)[] = [];
+let warming = 0;
+function drainWarmQueue() {
+  while (warming < 2 && warmQueue.length) {
+    warming++;
+    warmQueue.shift()!().finally(() => {
+      warming--;
+      drainWarmQueue();
+    });
+  }
+}
+
+// Starts a game concept's voice before the browser asks for it; game-routes.ts calls this while the
+// game is still generating. topic and facts must match conceptFacts/fetchConceptVoice in src/lib/voice.ts,
+// or the browser's request misses this voice and makes its own.
+export function warmConceptVoice(title: string, interest: string, c: { name: string; analogy: string; lesson: string }) {
+  warmQueue.push(() =>
+    makeVoice(`${c.name} (part of ${title})`, interest, [`${c.name}: like ${c.analogy}. ${c.lesson}`]).catch(() => {}),
+  );
+  drainWarmQueue();
 }
 
 // ---------- Route ----------
@@ -134,13 +206,13 @@ export function registerCoachRoute(app: Express) {
       res.status(400).json({ error: "Need a topic and an interest." });
       return;
     }
+    if (facts !== undefined && !(Array.isArray(facts) && facts.every((f) => typeof f === "string"))) {
+      res.status(400).json({ error: "Facts must be a list of strings." });
+      return;
+    }
 
-    const p = pickPersona(interest);
     try {
-      const script = await writeScript(topic, interest, (facts ?? []).join("\n"), p.persona);
-      if (!script) throw new Error("Empty script");
-      const audioBase64 = await speak(script, p.voice, p.style);
-      res.json({ script, audioBase64, mimeType: "audio/wav", persona: p.persona });
+      res.json(await makeVoice(topic, interest, facts ?? []));
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: "Couldn't make the voice explanation. Please try again." });

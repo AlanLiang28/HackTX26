@@ -16,7 +16,7 @@
 
 import express, { Router } from "express";
 import type { Request, Response } from "express";
-import { generateText, parseJsonLoose, LlmError } from "./llm.ts";
+import { streamText, parseJsonLoose, LlmError } from "./llm.ts";
 import { randomUUID } from "node:crypto";
 
 // ---------- Settings ----------
@@ -259,12 +259,52 @@ function normalizePack(raw: unknown): Pack {
   };
 }
 
-export async function generatePack(input: StartInput): Promise<Pack> {
+// server.ts plugs in warmConceptVoice (coach.ts), so each concept's voice starts as soon as its lesson
+// has streamed in, while the rest of the pack is still generating. Unset (e.g. in tests), nothing starts.
+type ConceptListener = (title: string, interest: string, c: { name: string; analogy: string; lesson: string }) => void;
+let onConcept: ConceptListener | null = null;
+export function onPackConcept(listener: ConceptListener | null) {
+  onConcept = listener;
+}
+
+// A complete JSON string from partial model output, trimmed like normalizePack's str().
+const QUOTED = String.raw`("(?:[^"\\]|\\.)*")`;
+const TITLE = new RegExp(String.raw`"title"\s*:\s*` + QUOTED);
+const CONCEPT = new RegExp(
+  String.raw`"name"\s*:\s*${QUOTED}\s*,\s*"analogy"\s*:\s*${QUOTED}\s*,\s*"lesson"\s*:\s*${QUOTED}`,
+  "g",
+);
+function unquote(raw: string | undefined): string {
+  try {
+    return raw ? str(JSON.parse(raw)) : "";
+  } catch {
+    return "";
+  }
+}
+
+// Finds subtopics whose name, analogy and lesson are complete in the text so far (in the prompt's field order).
+function announceConcepts(text: string, interest: string, announced: Set<string>) {
+  const title = unquote(TITLE.exec(text)?.[1]);
+  if (!title || !onConcept) return;
+  for (const m of text.matchAll(CONCEPT)) {
+    const [name, analogy, lesson] = [m[1], m[2], m[3]].map(unquote);
+    if (!name || !analogy || !lesson || announced.has(name) || announced.size >= 6) continue;
+    announced.add(name);
+    onConcept(title, interest, { name, analogy, lesson });
+  }
+}
+
+// warmVoices: announce concepts as they stream (onPackConcept). Only /start asks, since its player is waiting;
+// class packs (classes.ts) are built ahead of time and would spend the small daily TTS quota on unheard voices.
+export async function generatePack(input: StartInput, warmVoices = false): Promise<Pack> {
   // API errors (bad key, rate limit) throw an LlmError straight away and are not retried.
   // Only a malformed answer is worth a second try.
   let lastError: unknown;
+  const announced = new Set<string>();
   for (let attempt = 0; attempt < 2; attempt++) {
-    const text = await generateText(buildPackPrompt(input));
+    const text = await streamText(buildPackPrompt(input), (soFar) => {
+      if (warmVoices) announceConcepts(soFar, input.interest, announced);
+    });
     try {
       return normalizePack(parseJsonLoose(text));
     } catch (e) {
@@ -391,9 +431,11 @@ function chooseQuestion(game: Game, player: Player): Question {
   const fewest = Math.min(
     ...weakest.map((s) => player.proficiency[s.id].attempts),
   );
-  const sub = pick(
-    weakest.filter((s) => player.proficiency[s.id].attempts === fewest),
+  const tied = weakest.filter(
+    (s) => player.proficiency[s.id].attempts === fewest,
   );
+  // A new player starts with the first subtopic: its voice is the first one started (see onPackConcept).
+  const sub = player.used.length === 0 ? tied[0] : pick(tied);
   const all = game.pack.questions.filter((q) => q.subtopic === sub.id);
   const fresh = all.filter((q) => !player.used.includes(q.id));
   return pick(fresh.length > 0 ? fresh : all);
@@ -481,7 +523,7 @@ gameRouter.post("/start", async (req, res) => {
   }
 
   try {
-    res.json(createGame(await generatePack(input), input.playerName));
+    res.json(createGame(await generatePack(input, true), input.playerName));
   } catch (e) {
     console.error("game start failed:", e);
     res

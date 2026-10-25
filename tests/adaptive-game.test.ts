@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { request } from "node:http";
 import { test } from "node:test";
 import express from "express";
-import { gameRouter } from "../game-routes.ts";
+import { gameRouter, onPackConcept } from "../game-routes.ts";
 import { gamePack } from "./fixtures/game-pack.ts";
 import type {
   AdaptiveGame,
@@ -12,20 +12,25 @@ import type {
 } from "../src/lib/adaptive.ts";
 
 test("adaptive game API", async (t) => {
-  const previousKey = process.env.MODEL_API_KEY;
-  process.env.MODEL_API_KEY = "test-only-key";
+  const previousKey = process.env.GEMINI_API_KEY;
+  process.env.GEMINI_API_KEY = "test-only-key";
   let modelCalls = 0;
+  // Streams the pack in small pieces, like Gemini does, so concepts are found in partial output.
   t.mock.method(globalThis, "fetch", async () => {
     modelCalls++;
-    return new Response(
-      JSON.stringify({
-        choices: [{ message: { content: JSON.stringify(gamePack) } }],
-      }),
-      {
-        headers: { "Content-Type": "application/json" },
-      },
+    const text = JSON.stringify(gamePack, null, 2);
+    const events = (text.match(/[\s\S]{1,40}/g) ?? []).map(
+      (piece) =>
+        `data: ${JSON.stringify({ candidates: [{ content: { role: "model", parts: [{ text: piece }] } }] })}\n\n`,
     );
+    return new Response(events.join(""), {
+      headers: { "Content-Type": "text/event-stream" },
+    });
   });
+  const announced: { title: string; interest: string; name: string }[] = [];
+  onPackConcept((title, interest, c) =>
+    announced.push({ title, interest, name: c.name }),
+  );
   t.mock.method(Math, "random", () => 0);
   const app = express();
   app.use("/api/game", gameRouter);
@@ -35,8 +40,9 @@ test("adaptive game API", async (t) => {
     server.once("error", reject);
   });
   t.after(async () => {
-    if (previousKey === undefined) delete process.env.MODEL_API_KEY;
-    else process.env.MODEL_API_KEY = previousKey;
+    onPackConcept(null);
+    if (previousKey === undefined) delete process.env.GEMINI_API_KEY;
+    else process.env.GEMINI_API_KEY = previousKey;
     await new Promise<void>((resolve, reject) =>
       server.close((error) => (error ? reject(error) : resolve())),
     );
@@ -115,6 +121,21 @@ test("adaptive game API", async (t) => {
       assert(!("explanation" in first.encounter.question));
       assert.deepEqual((await next(game)).encounter, first.encounter);
       assert.equal(modelCalls, calls + 1);
+    },
+  );
+
+  await t.test(
+    "announces each concept once while the pack streams, and starts with the first",
+    async () => {
+      announced.length = 0;
+      const game = await start();
+      assert.deepEqual(
+        announced.map((c) => c.name),
+        ["Nucleus", "Mitochondria", "Membrane", "Ribosomes"],
+      );
+      assert(announced.every((c) => c.title === "The Cell Kingdom"));
+      const first = (await next(game)).encounter!;
+      assert.equal(first.enemy.subtopic, "Nucleus");
     },
   );
 

@@ -1,5 +1,5 @@
 export type Theme = "sports" | "fantasy";
-type Mapping = {
+export type Mapping = {
   concept: string;
   analogy: string;
   explanation: string;

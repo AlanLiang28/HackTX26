@@ -1,62 +1,103 @@
-// One place that talks to Meta's Model API (Muse). Both server.ts and game-routes.ts use it,
+// One place that talks to Gemini for text generation. server.ts, game-routes.ts and boss.ts use it,
 // so switching models or providers later means editing only this file.
 //
 // .env:
-//   MODEL_API_KEY=...        (META_API_KEY or MUSE_API also work)
-//   MUSE_MODEL=muse-spark-1.3   (optional; try muse-spark-1.1 if 1.3 isn't recognized)
-//   META_API_BASE=...           (optional; defaults to https://api.meta.ai/v1)
+//   GEMINI_API_KEY=...
+//   GEMINI_FALLBACK_API_KEY=...   (optional; a second key, used when GEMINI_API_KEY is out of quota)
+//   GEMINI_MODEL=gemini-3.5-flash  (optional)
+import { GoogleGenAI } from "@google/genai";
 
 // Env is read lazily: ESM hoists imports, so process.loadEnvFile() in server.ts runs after this file loads.
-const apiKey = () => process.env.MODEL_API_KEY ?? process.env.META_API_KEY ?? process.env.MUSE_API; // MUSE_API is what coach.ts uses
-const baseUrl = () => (process.env.META_API_BASE ?? "https://api.meta.ai/v1").replace(/\/$/, "");
-export const modelName = () => process.env.MUSE_MODEL ?? "muse-spark-1.3";
+const apiKey = () => process.env.GEMINI_API_KEY;
+export const modelName = () => process.env.GEMINI_MODEL ?? "gemini-3.5-flash";
+
+const clients = new Map<string, GoogleGenAI>();
+function clientFor(key: string) {
+  let client = clients.get(key);
+  if (!client) clients.set(key, (client = new GoogleGenAI({ apiKey: key })));
+  return client;
+}
 
 // An error whose message is safe and useful to show the player.
 export class LlmError extends Error {}
 
-function messageForStatus(status: number): string {
-  if (status === 401 || status === 403) return "Meta rejected the API key. Check MODEL_API_KEY in .env.";
-  if (status === 404) return `Meta doesn't recognize the model "${modelName()}". Set MUSE_MODEL in .env (try muse-spark-1.1).`;
-  if (status === 429) return "Meta's rate limit was reached. Wait a moment and try again.";
-  if (status === 400) return `Meta rejected the request. Check that MUSE_MODEL ("${modelName()}") is valid.`;
-  return `Meta's API had a problem (status ${status}). Try again.`;
+const statusOf = (e: unknown) => (e as { status?: number }).status;
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// A 503 means Gemini is briefly overloaded; it usually clears in seconds, so retry once after a short wait.
+async function retryOnOverload<T>(call: (ai: GoogleGenAI) => Promise<T>, ai: GoogleGenAI): Promise<T> {
+  try {
+    return await call(ai);
+  } catch (e) {
+    if (statusOf(e) !== 503) throw e;
+    console.warn("Gemini is overloaded (503); retrying once.");
+    await wait(1500);
+    return await call(ai);
+  }
 }
 
-// Send one prompt, get the model's text back.
-export async function generateText(prompt: string): Promise<string> {
-  const key = apiKey();
-  if (!key) throw new LlmError("Server is missing MODEL_API_KEY. Add it to .env and restart the server.");
+// Quotas belong to the key's Google Cloud project: when GEMINI_API_KEY is out (429), retry with
+// GEMINI_FALLBACK_API_KEY. A backup key from the same project shares the quota and won't help.
+export async function withGeminiFallback<T>(call: (ai: GoogleGenAI) => Promise<T>): Promise<T> {
+  const keys = [...new Set([apiKey(), process.env.GEMINI_FALLBACK_API_KEY].filter((k): k is string => !!k))];
+  if (!keys.length) throw new LlmError("Server is missing GEMINI_API_KEY. Add it to .env and restart the server.");
+  for (let i = 0; ; i++) {
+    try {
+      return await retryOnOverload(call, clientFor(keys[i]));
+    } catch (e) {
+      if (statusOf(e) !== 429 || i === keys.length - 1) throw e;
+      console.warn("GEMINI_API_KEY is out of quota; trying GEMINI_FALLBACK_API_KEY.");
+    }
+  }
+}
 
-  let res: Response;
+function messageForError(status: number, detail: string): string {
+  if (status === 401 || status === 403) return "Gemini rejected the API key. Check GEMINI_API_KEY in .env.";
+  if (status === 404) return `Gemini doesn't recognize the model "${modelName()}". Set GEMINI_MODEL in .env.`;
+  if (status === 429 && /PerDay/i.test(detail))
+    return "Gemini's free daily limit is used up. Try again later, or add billing to the Gemini API key.";
+  if (status === 429) return "Gemini's rate limit was reached. Wait a moment and try again.";
+  if (status === 400) return `Gemini rejected the request. Check that GEMINI_MODEL ("${modelName()}") is valid.`;
+  if (status === 503) return "Gemini is overloaded right now. Wait a minute and try again.";
+  return `Gemini's API had a problem (status ${status}). Try again.`;
+}
+
+// Runs a text call with the key fallback, turning API failures into messages safe to show the player.
+async function textCall(run: (ai: GoogleGenAI) => Promise<string | undefined>): Promise<string> {
+  if (!apiKey()) throw new LlmError("Server is missing GEMINI_API_KEY. Add it to .env and restart the server.");
+
+  let text: string | undefined;
   try {
-    res = await fetch(`${baseUrl()}/chat/completions`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-      body: JSON.stringify({
-        model: modelName(),
-        messages: [{ role: "user", content: prompt }],
-        max_completion_tokens: 16000,
-      }),
-    });
+    text = await withGeminiFallback(run);
   } catch (e) {
-    console.error("Muse request failed:", e);
-    throw new LlmError("Couldn't reach Meta's API. Check your internet connection.");
+    const status = statusOf(e);
+    console.error("Gemini request failed:", e);
+    if (typeof status === "number") throw new LlmError(messageForError(status, String((e as Error).message)));
+    throw new LlmError("Couldn't reach Gemini's API. Check your internet connection.");
   }
 
-  if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    console.error(`Muse API error ${res.status}:`, detail.slice(0, 500));
-    throw new LlmError(messageForStatus(res.status));
-  }
+  if (text) return text;
+  throw new LlmError("Gemini's API returned an empty answer. Try again.");
+}
 
-  const data: unknown = await res.json().catch(() => null);
-  const message = (data as { choices?: { message?: { content?: unknown } }[] } | null)?.choices?.[0]?.message;
-  const content = message?.content;
-  if (typeof content === "string") return content;
-  if (Array.isArray(content)) {
-    return content.map((p) => (typeof p === "object" && p && "text" in p ? String((p as { text: unknown }).text) : "")).join("");
-  }
-  throw new LlmError("Meta's API returned an empty answer. Try again.");
+const config = { maxOutputTokens: 16000 };
+
+// Send one prompt, get the model's text back.
+export function generateText(prompt: string): Promise<string> {
+  return textCall(async (ai) => (await ai.models.generateContent({ model: modelName(), contents: prompt, config })).text);
+}
+
+// Like generateText, but calls onProgress with the text so far as it streams in, so callers can act on
+// the start of a long answer early. After a retry (backup key, overload) the text starts over.
+export function streamText(prompt: string, onProgress: (textSoFar: string) => void): Promise<string> {
+  return textCall(async (ai) => {
+    let soFar = "";
+    for await (const chunk of await ai.models.generateContentStream({ model: modelName(), contents: prompt, config })) {
+      soFar += chunk.text ?? "";
+      onProgress(soFar);
+    }
+    return soFar;
+  });
 }
 
 // Models sometimes wrap JSON in fences or add a sentence around it. Grab the outermost {...}.

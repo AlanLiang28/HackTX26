@@ -3,7 +3,14 @@ import { PixelIcon } from "./PixelIcon";
 import { PixelSprite } from "./PixelSprite";
 import { DialogueBox } from "./DialogueBox";
 import { BossChallenge } from "./BossChallenge";
-import { getCharacter, getLessonLines, worlds } from "../lib/characters";
+import { ConceptVoice } from "./ConceptVoice";
+import {
+  getCharacter,
+  getEncounterConcepts,
+  getLessonLines,
+  worlds,
+} from "../lib/characters";
+import { interestFor } from "../lib/adaptive";
 import type { StudySession, Theme } from "../lib/study";
 import type { GradedAnswer } from "../lib/adaptive";
 
@@ -22,6 +29,7 @@ export function Encounter({
   onFinish,
   onGrade,
   focus,
+  localVoice = false,
 }: {
   theme: Theme;
   session: StudySession;
@@ -37,9 +45,12 @@ export function Encounter({
   onFinish: () => void;
   onGrade?: (answer: number) => Promise<GradedAnswer>;
   focus?: string;
+  localVoice?: boolean;
 }) {
   const boss = index === session.content.quiz.length;
   const character = getCharacter(theme, index, boss);
+  // The boss gets no voice: hearing the concept explained would give away its challenge.
+  const concepts = boss ? [] : getEncounterConcepts(session, index);
   const lesson = [
     character.introduction,
     ...(boss && focus
@@ -198,6 +209,15 @@ export function Encounter({
           <span className="combat-particle particle-two">·</span>
         </div>
       </section>
+      {phase === "talk" && concepts.length > 0 && (
+        <ConceptVoice
+          title={session.content.title}
+          interest={interestFor(theme)}
+          concepts={concepts}
+          speaker={character.name}
+          localOnly={localVoice}
+        />
+      )}
       <div className="encounter-content">
         {phase === "talk" && (
           <>

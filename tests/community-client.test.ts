@@ -12,6 +12,7 @@ import {
 } from "../src/lib/classroom.ts";
 import { getBoss, startBoss, submitBoss } from "../src/lib/party.ts";
 import { saveQuest } from "../src/lib/study.ts";
+import { fetchConceptVoice } from "../src/lib/voice.ts";
 
 const profile = { name: "Ada", interests: ["gaming", "anime"] };
 const memberView = {
@@ -90,6 +91,48 @@ test("community clients follow the class, matching, teacher and boss contracts",
     },
   );
   const last = () => calls.at(-1)!;
+  await t.test(
+    "concept voices cache a lesson per world and retain its facts",
+    async () => {
+      const concept = {
+        concept: "Nucleus",
+        analogy: "A castle's plans",
+        explanation: "Stores genetic information.",
+      };
+      reply = {
+        script: "The nucleus stores DNA.",
+        audioBase64: null,
+        mimeType: "audio/wav",
+      };
+      const before = calls.length;
+      await Promise.all([
+        fetchConceptVoice("Cells", "fantasy", concept),
+        fetchConceptVoice("Cells", "fantasy", concept),
+      ]);
+      assert.equal(calls.length, before + 1);
+      assert.equal(last().path, "/api/coach");
+      assert.deepEqual(JSON.parse(String(last().options.body)), {
+        topic: "Nucleus (part of Cells)",
+        interest: "fantasy",
+        facts: ["Nucleus: like A castle's plans. Stores genetic information."],
+      });
+      await fetchConceptVoice("Cells", "football", concept);
+      assert.equal(calls.length, before + 2);
+      status = 503;
+      reply = { error: "Voice unavailable" };
+      await assert.rejects(() =>
+        fetchConceptVoice("Retry lesson", "football", concept),
+      );
+      status = 200;
+      reply = {
+        script: "Try again.",
+        audioBase64: null,
+        mimeType: "audio/wav",
+      };
+      await fetchConceptVoice("Retry lesson", "football", concept);
+      assert.equal(calls.length, before + 4);
+    },
+  );
   await t.test(
     "free-agent signup includes notes, preset world and exact interest tags",
     async () => {

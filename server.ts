@@ -1,13 +1,13 @@
-// Backend: keeps keys safe, talks to Meta Muse and Tiger Data, serves the built site.
+// Backend: keeps keys safe, talks to Gemini and Tiger Data, serves the built site.
 // Dev:  npx tsx watch server.ts
 import express from "express";
 import path from "node:path";
 import pg from "pg";
 import { GoogleGenAI } from "@google/genai";
 import OpenAI from "openai";
-import { registerCoachRoute } from "./coach.ts";
+import { registerCoachRoute, warmConceptVoice } from "./coach.ts";
 import rateLimit from "express-rate-limit";
-import { gameRouter } from "./game-routes.ts";
+import { gameRouter, onPackConcept } from "./game-routes.ts";
 import { generateText, parseJsonLoose, LlmError } from "./llm.ts";
 import { bossRouter } from "./boss.ts";
 import { classRouter } from "./classes.ts";
@@ -24,7 +24,6 @@ app.set("trust proxy", 1); // we're behind Caddy, so read the visitor's real IP
 // Same for the boss fight: only attempt (transcribe + grade) calls the model.
 const AI_ROUTES = [
   "/api/explain",
-  "/api/coach",
   "/api/sessions",
   "/api/game/start",
   "/api/sessions/:code/boss/attempt",
@@ -32,39 +31,49 @@ const AI_ROUTES = [
   "/api/free-agents", // signing up builds the free agent's pack
 ];
 
-// Per visitor: 5 AI requests per minute, 40 per day
-const perMinute = rateLimit({
-  windowMs: 60 * 1000,
-  limit: 5,
-  message: { error: "Slow down! Wait a minute and try again." },
-});
-const perDay = rateLimit({
-  windowMs: 24 * 60 * 60 * 1000,
-  limit: 40,
-  message: { error: "You've hit today's limit. Come back tomorrow!" },
-});
+// Voice explanations have their own, looser limits: the game makes one per concept
+// ahead of time (about 4-6 per game), which would blow through the general limit.
+const VOICE_ROUTES = ["/api/coach"];
 
-// Whole site: hard cap on AI calls per day, so costs can't run away
-let aiCallsToday = 0;
-let currentDay = new Date().toDateString();
-const MAX_AI_CALLS_PER_DAY = 300;
+// Whole site: hard cap on calls per day, so costs can't run away
+function dailyBudget(max: number) {
+  let callsToday = 0;
+  let currentDay = new Date().toDateString();
+  return (_req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const today = new Date().toDateString();
+    if (today !== currentDay) {
+      currentDay = today;
+      callsToday = 0;
+    }
+    if (callsToday >= max) {
+      res.status(503).json({ error: "The app hit its daily AI budget. Try again tomorrow." });
+      return;
+    }
+    callsToday++;
+    next();
+  };
+}
 
-app.post(AI_ROUTES, perMinute, perDay, (_req, res, next) => {
-  const today = new Date().toDateString();
-  if (today !== currentDay) {
-    currentDay = today;
-    aiCallsToday = 0;
-  }
-  if (aiCallsToday >= MAX_AI_CALLS_PER_DAY) {
-    res.status(503).json({ error: "The app hit its daily AI budget. Try again tomorrow." });
-    return;
-  }
-  aiCallsToday++;
-  next();
-});
+// Per visitor: 5 AI requests per minute, 40 per day; site-wide 300 per day
+app.post(
+  AI_ROUTES,
+  rateLimit({ windowMs: 60 * 1000, limit: 5, message: { error: "Slow down! Wait a minute and try again." } }),
+  rateLimit({ windowMs: 24 * 60 * 60 * 1000, limit: 40, message: { error: "You've hit today's limit. Come back tomorrow!" } }),
+  dailyBudget(300),
+);
+
+// Per visitor: 12 voices per minute, 100 per day; site-wide 1000 per day
+app.post(
+  VOICE_ROUTES,
+  rateLimit({ windowMs: 60 * 1000, limit: 12, message: { error: "Slow down! Wait a minute and try again." } }),
+  rateLimit({ windowMs: 24 * 60 * 60 * 1000, limit: 100, message: { error: "You've hit today's voice limit. Come back tomorrow!" } }),
+  dailyBudget(1000),
+);
 
 // Battle mode. Mounted BEFORE express.json() because it brings its own JSON parser.
 app.use("/api/game", gameRouter);
+// Start each concept's voice while the game is still generating, so the first enemy's voice is ready sooner.
+onPackConcept(warmConceptVoice);
 
 app.use(express.json());
 registerCoachRoute(app);
@@ -75,11 +84,12 @@ const db = new pg.Pool({
   ssl: { rejectUnauthorized: false },
 });
 
-// ---- Model: Meta Muse (see llm.ts) ----
+// ---- Model: Gemini (see llm.ts) ----
+// Classes (classes.ts) use this client directly for embeddings; text calls go through llm.ts.
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 // ---- Boss fight models (boss.ts) ----
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-// Muse (Meta): null until the team has a key; boss LLM calls fall back to Gemini.
+// Muse (Meta) handles voice transcription only; null without a key, so transcription falls back to Gemini.
 const muse = process.env.META_API_KEY
   ? new OpenAI({ apiKey: process.env.META_API_KEY, baseURL: "https://api.meta.ai/v1" })
   : null;
@@ -157,7 +167,7 @@ app.get("/api/stats", async (_req, res) => {
 });
 
 // ---- Part 3: boss fight (must stay above the static site + catch-all) ----
-app.use(bossRouter({ db, ai, muse }));
+app.use(bossRouter({ db, muse }));
 app.use(classRouter({ db, ai })); // classes, free agents + matching; groups play the boss above (docs/classes.md)
 
 // ---- Serve the built React site (after `npm run build`) ----

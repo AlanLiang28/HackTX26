@@ -20,9 +20,9 @@ Vite forwards `/api` to `http://localhost:3001`. `STUDYRAID_API_TARGET` can over
 The backend reads local environment configuration. Keep credentials out of frontend code:
 
 - `DATABASE_URL`: Tiger Data/Postgres connection.
-- `MODEL_API_KEY` or `META_API_KEY`: Muse game-pack generation. The boss grader uses `META_API_KEY` when present, otherwise Gemini.
-- `GEMINI_API_KEY`: subject embeddings, Gemini transcription/grading fallback, and coach audio.
-- `MUSE_API`: the voice coach's Muse script generation, as implemented in `coach.ts`.
+- `GEMINI_API_KEY`: game-pack generation, subject embeddings, boss grading, transcription fallback, and coach audio. `GEMINI_MODEL` optionally overrides the text model.
+- `GEMINI_FALLBACK_API_KEY`: optional backup key for quota failures.
+- `META_API_KEY`: optional Muse voice transcription and coach script generation. The coach also accepts `MUSE_API`; without either key, Gemini writes its script.
 - Optional model overrides are documented in `llm.ts`, `boss.ts`, and `coach.ts`.
 
 For the new class, group, and boss tables, run `npx tsx setup-db.ts` against the intended development database. The script is idempotent and enables pgvector. This frontend integration does not run migrations or seed a connected database automatically.
@@ -36,6 +36,8 @@ The home screen has three entry points, all using the same paper panels, local p
 3. **Teacher desk.** Create a class in two steps: class details, then study material. Save the private teacher key when it is first shown. The browser remembers classroom access; another device can open the dashboard with the class code and teacher key. The dashboard shows students, readiness, parties, and topics that need review.
 
 Student adventures retain a **vertical foes list** and the existing character dialogue. Live solo rounds have six encounters and three lives. Missed concepts receive priority in later questions. Every class/free-agent answer is logged by the backend.
+
+Each solo opponent can speak its lesson, with one compact pause/play control. Live voices are prepared and cached as the adventure starts. Generated audio falls back to browser speech when unavailable; the offline demo reads its local lesson without requesting AI. Voice playback stops when leaving the lesson, and the final boss does not read out the concepts being assessed.
 
 After the solo round, **Find a study party** opens matching. Classmates are ranked by shared interests; independent students also use subject similarity. Players who are still studying are disabled. A selection immediately creates or joins a party of two to four students. Matching refreshes about every three seconds, including when another student adds you to a party.
 
@@ -59,6 +61,7 @@ Profiles, student identities, teacher access keys, completed quests, and a compl
 - `src/lib/party.ts`: boss polling, start, text, and WAV submission clients.
 - `src/lib/adaptive.ts`: the shared solo-game client and response validation.
 - `src/lib/usePolling.ts`: serial polling with cancellation on navigation and pauses in hidden tabs.
+- `src/lib/voice.ts`: shared concept-voice requests and prefetch cache.
 
 Game packs and answer keys remain server-owned. Lessons reach the browser when a round starts; a question's answer key is returned only after grading. Incorrect network retries are not counted as extra answers.
 

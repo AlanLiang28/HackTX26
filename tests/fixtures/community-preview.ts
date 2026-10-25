@@ -256,14 +256,12 @@ function match(req: express.Request, res: express.Response) {
 }
 app.post("/api/classes/:code/groups", match);
 app.post("/api/free-agents/groups", match);
-const concepts = pack.subtopics
-  .slice(0, 2)
-  .map((sub) => ({
-    name: sub.name,
-    analogy: sub.analogy,
-    explanation: sub.lesson,
-    key_points: ["Accurate real-world explanation"],
-  }));
+const concepts = pack.subtopics.slice(0, 2).map((sub) => ({
+  name: sub.name,
+  analogy: sub.analogy,
+  explanation: sub.lesson,
+  key_points: ["Accurate real-world explanation"],
+}));
 function bossView(code: string) {
   const f = fights.get(code)!;
   const players = [
@@ -364,9 +362,11 @@ app.post("/api/sessions/:code/boss/attempt", (req, res) => {
       }
     }, 1800);
 });
-app.post("/api/coach", (_req, res) =>
+app.post("/api/coach", (req, res) =>
   res.json({
-    script: "The nucleus stores genetic information, like plans in a castle.",
+    script: Array.isArray(req.body.facts)
+      ? req.body.facts.join(" ")
+      : "Your study guide explains the concept.",
     audioBase64: null,
     mimeType: "audio/wav",
     persona: "Your study guide",
