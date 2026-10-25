@@ -277,12 +277,5 @@ export function bossRouter({ db, muse }: { db: pg.Pool; muse: OpenAI | null }) {
       res.json({ transcript, rubric, total, passed, hint, state: view(after) });
     });
 
-  // Keep the { error, message } shape for anything unexpected on these routes (DB down, bad JSON, body too big).
-  router.use("/api/sessions/:code/boss", (err: { status?: number; type?: string; message?: string }, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-    console.error(err);
-    if (err.status) fail(res, err.status, err.type ?? "bad_request", err.message ?? "Bad request.");
-    else fail(res, 500, "internal", "Something went wrong.");
-  });
-
   return router;
 }

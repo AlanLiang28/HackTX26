@@ -79,6 +79,7 @@ const materialError = (material: string): Failure | null =>
 export function classRouter({ db, ai }: { db: pg.Pool; ai: GoogleGenAI }) {
   const EMBED_MODEL = process.env.GEMINI_EMBED_MODEL ?? "gemini-embedding-001"; // read here: imports run before loadEnvFile()
   const pending = new Map<string, Promise<Pack>>();
+  const failed = new Map<string, string>(); // why a world's last build failed, for the teacher dashboard
 
   // One pack per class and world, generated once and kept in Tiger Data, so the whole class gets the
   // same subtopics and a full classroom costs at most two model calls. Concurrent first plays share one call.
@@ -87,6 +88,7 @@ export function classRouter({ db, ai }: { db: pg.Pool; ai: GoogleGenAI }) {
     if (stored) return Promise.resolve(stored);
     const key = `${cls.id}:${theme}`;
     if (!pending.has(key)) {
+      failed.delete(key);
       pending.set(key, generatePack({
         topic: "", interest: interestFor(theme), level: cls.level ?? "high school",
         material: cls.material, playerName: "",
@@ -100,6 +102,7 @@ export function classRouter({ db, ai }: { db: pg.Pool; ai: GoogleGenAI }) {
         // ponytail: every pack built since boot stays in memory; fine at hackathon scale, add an LRU if not.
         .catch((e) => {
           pending.delete(key);
+          failed.set(key, e instanceof LlmError ? e.message : "Couldn't build this world.");
           throw e;
         }));
     }
@@ -124,9 +127,16 @@ export function classRouter({ db, ai }: { db: pg.Pool; ai: GoogleGenAI }) {
   }
 
   async function loadClass(code: string) {
+    if (!/^[A-Z0-9]{6}$/i.test(code)) return null; // codes are 6 letters/digits; anything else can't exist
     const { rows: [cls] } = await db.query<ClassRow>("SELECT * FROM classes WHERE code = $1", [code.toUpperCase()]);
     return cls ?? null;
   }
+
+  // Member ids show up in classmates' match lists, so acting as a member needs their X-Member-Token too.
+  const isMember = async (req: express.Request, memberId: unknown) =>
+    typeof memberId === "string" && /^[0-9a-f-]{36}$/i.test(memberId) && (await db.query(
+    "SELECT 1 FROM class_members WHERE id::text = $1 AND token::text = $2",
+    [memberId, req.get("x-member-token") ?? ""])).rowCount === 1;
 
   // classId null = the free agent pool. topic = cosine similarity to the viewer (null without embeddings).
   // ponytail: loads the whole pool on every poll; filter in SQL once free agents number in the thousands.
@@ -184,10 +194,13 @@ export function classRouter({ db, ai }: { db: pg.Pool; ai: GoogleGenAI }) {
     res.status(status).json({ error, message });
   const NO_CLASS = "No class with that code.";
   const NO_MEMBER = "We couldn't find that player.";
+  const notYou = (res: express.Response) => fail(res, 403, "not_member", "Rejoin to keep playing.");
 
   // Match two players: start a group together, or join the partner's (or add them to yours).
   // The group's boss uses the class pack, or for free agents the pack of whoever started the group (its host).
-  async function matchUp(res: express.Response, cls: ClassRow | null, memberId: unknown, partnerId: unknown) {
+  async function matchUp(req: express.Request, res: express.Response, cls: ClassRow | null) {
+    const { memberId, partnerId } = req.body ?? {};
+    if (!(await isMember(req, memberId))) return notYou(res);
     const client = await db.connect();
     try {
       await client.query("BEGIN");
@@ -283,6 +296,9 @@ export function classRouter({ db, ai }: { db: pg.Pool; ai: GoogleGenAI }) {
     res.json({
       code: cls.code, name: cls.name, teacherName: cls.teacher_name, level: cls.level,
       worldsReady: THEMES.filter((t) => cls.packs[t]),
+      // Not ready and not building (it failed, or the server restarted): a student picking it builds it again.
+      worldErrors: Object.fromEntries(THEMES.filter((t) => !cls.packs[t] && !pending.has(`${cls.id}:${t}`))
+        .map((t) => [t, failed.get(`${cls.id}:${t}`) ?? "The server restarted before it finished."])),
       members: members.map((m) => {
         const s = perMember.find((p) => p.key === m.id);
         return {
@@ -313,6 +329,7 @@ export function classRouter({ db, ai }: { db: pg.Pool; ai: GoogleGenAI }) {
   router.post("/api/classes/:code/members/:memberId/play", async (req, res) => {
     const cls = await loadClass(req.params.code);
     if (!cls) return fail(res, 404, "class_not_found", NO_CLASS);
+    if (!(await isMember(req, req.params.memberId))) return notYou(res);
     const me = (await roster(db, cls.id)).find((m) => m.id === req.params.memberId);
     if (!me) return fail(res, 404, "member_not_found", NO_MEMBER);
     const theme = req.body?.theme as Theme;
@@ -332,6 +349,7 @@ export function classRouter({ db, ai }: { db: pg.Pool; ai: GoogleGenAI }) {
   router.get("/api/classes/:code/members/:memberId", async (req, res) => {
     const cls = await loadClass(req.params.code);
     if (!cls) return fail(res, 404, "class_not_found", NO_CLASS);
+    if (!(await isMember(req, req.params.memberId))) return notYou(res);
     const view = await memberView(db, cls, req.params.memberId);
     if (!view) return fail(res, 404, "member_not_found", NO_MEMBER);
     res.json(view);
@@ -340,7 +358,7 @@ export function classRouter({ db, ai }: { db: pg.Pool; ai: GoogleGenAI }) {
   router.post("/api/classes/:code/groups", async (req, res) => {
     const cls = await loadClass(req.params.code);
     if (!cls) return fail(res, 404, "class_not_found", NO_CLASS);
-    await matchUp(res, cls, req.body?.memberId, req.body?.partnerId);
+    await matchUp(req, res, cls);
   });
 
   // ---------- Free agents ----------
@@ -368,6 +386,7 @@ export function classRouter({ db, ai }: { db: pg.Pool; ai: GoogleGenAI }) {
 
   // Replay phase 1 from the stored pack (e.g. after a server restart), with no model call.
   router.post("/api/free-agents/:memberId/play", async (req, res) => {
+    if (!(await isMember(req, req.params.memberId))) return notYou(res);
     const { rows: [m] } = await db.query(
       "SELECT id, name, pack FROM class_members WHERE id::text = $1 AND class_id IS NULL", [req.params.memberId]);
     if (!m) return fail(res, 404, "member_not_found", NO_MEMBER);
@@ -375,19 +394,13 @@ export function classRouter({ db, ai }: { db: pg.Pool; ai: GoogleGenAI }) {
   });
 
   router.get("/api/free-agents/:memberId", async (req, res) => {
+    if (!(await isMember(req, req.params.memberId))) return notYou(res);
     const view = await memberView(db, null, req.params.memberId);
     if (!view) return fail(res, 404, "member_not_found", NO_MEMBER);
     res.json(view);
   });
 
-  router.post("/api/free-agents/groups", (req, res) => matchUp(res, null, req.body?.memberId, req.body?.partnerId));
-
-  // Same { error, message } shape as boss.ts for anything unexpected (DB down, bad JSON, body too big).
-  router.use(["/api/classes", "/api/free-agents"], (err: { status?: number; type?: string; message?: string }, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-    console.error(err);
-    if (err.status) fail(res, err.status, err.type ?? "bad_request", err.message ?? "Bad request.");
-    else fail(res, 500, "internal", "Something went wrong.");
-  });
+  router.post("/api/free-agents/groups", (req, res) => matchUp(req, res, null));
 
   return router;
 }
