@@ -9,6 +9,7 @@ import { Modal } from "./components/Modal";
 import CoachVoice from "./CoachVoice";
 import { getDemoSession, readQuestLog, saveQuest } from "./lib/study";
 import { getCharacter, worlds } from "./lib/characters";
+import { prefetchVoices } from "./lib/voice";
 import type { QuestRecord, StudySession, Theme } from "./lib/study";
 import "./App.css";
 import {
@@ -108,6 +109,8 @@ export default function App() {
     saved.current = false;
     setScreen("journey");
     chime();
+    // Make every concept's voice now, so encounters don't wait for it.
+    prefetchVoices(next.content.title, interestFor(theme), next.content.mappings);
   }
   function goHome() {
     setOverlay(null);

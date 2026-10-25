@@ -1,8 +1,10 @@
-// AI voice explanation: Gemini writes a script in character, Gemini TTS performs it.
+// AI voice explanation: Muse writes a script in character, Gemini TTS performs it.
+// Muse needs META_API_KEY (or MUSE_API); without one, Gemini writes the script instead.
 // Add to server.ts:   import { registerCoachRoute } from "./coach";
 //                     registerCoachRoute(app);      (after app.use(express.json(...)))
 import type { Express } from "express";
 import { GoogleGenAI } from "@google/genai";
+import OpenAI from "openai";
 
 // Who's talking for each theme. voice = a Gemini prebuilt voice name.
 const PERSONAS: Array<{ match: string[]; persona: string; voice: string; style: string }> = [
@@ -59,24 +61,37 @@ const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const statusOf = (err: unknown) => (err as { status?: number }).status;
 const isBusy = (s?: number) => s === 503 || s === 429 || s === 500;
 
-// ---------- Step 1: Gemini writes the speech ----------
-async function writeScript(topic: string, interest: string, facts: string, persona: string) {
-  const gemini = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-
-  const reply = await gemini.models.generateContent({
-    model: process.env.GEMINI_MODEL ?? "gemini-3.5-flash",
-    contents: `You are ${persona}. Explain this topic to a student, out loud, staying fully in character.
+// ---------- Step 1: Muse writes the speech ----------
+async function writeScript(topic: string, interest: string, facts: string[], persona: string) {
+  // Shorter speech is faster to generate. One fact = one game concept, so keep it brief.
+  const length =
+    facts.length === 1 ? "70 to 110 words: about 30 seconds spoken" : "150 to 220 words: about one minute spoken";
+  const prompt = `You are ${persona}. Explain this topic to a student, out loud, staying fully in character.
 
 Topic: ${topic}
-${facts ? `Facts you must cover accurately:\n${facts}\n` : ""}
+${facts.length ? `Facts you must cover accurately:\n${facts.join("\n")}\n` : ""}
 Rules:
 - Explain the topic through analogies from ${interest}. Keep every fact accurate.
-- 150 to 220 words: about one minute spoken.
+- ${length}.
 - This is a spoken script: no headings, lists, emojis, markdown, or stage directions in brackets.
 - You may use the tag <short pause> two or three times for dramatic effect.
-- End with a short, punchy line that sums up the key idea.`,
-  });
+- End with a short, punchy line that sums up the key idea.`;
 
+  const museKey = process.env.META_API_KEY ?? process.env.MUSE_API;
+  if (museKey) {
+    const muse = new OpenAI({ baseURL: "https://api.meta.ai/v1", apiKey: museKey });
+    const reply = await muse.chat.completions.create({
+      model: process.env.MUSE_MODEL ?? "muse-spark-1.1",
+      messages: [{ role: "user", content: prompt }],
+    });
+    return reply.choices[0]?.message?.content?.trim() ?? "";
+  }
+
+  const gemini = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+  const reply = await gemini.models.generateContent({
+    model: process.env.GEMINI_MODEL ?? "gemini-3.5-flash",
+    contents: prompt,
+  });
   return reply.text?.trim() ?? "";
 }
 
@@ -128,10 +143,14 @@ export function registerCoachRoute(app: Express) {
       res.status(400).json({ error: "Need a topic and an interest." });
       return;
     }
+    if (facts !== undefined && !(Array.isArray(facts) && facts.every((f) => typeof f === "string"))) {
+      res.status(400).json({ error: "Facts must be a list of strings." });
+      return;
+    }
 
     const p = pickPersona(interest);
     try {
-      const script = await writeScript(topic, interest, (facts ?? []).join("\n"), p.persona);
+      const script = await writeScript(topic, interest, facts ?? [], p.persona);
       if (!script) throw new Error("Empty script");
       const audioBase64 = await speak(script, p.voice, p.style);
       res.json({ script, audioBase64, mimeType: "audio/wav", persona: p.persona });

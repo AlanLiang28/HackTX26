@@ -1,4 +1,4 @@
-import type { StudySession, Theme } from "./study";
+import type { Mapping, StudySession, Theme } from "./study";
 import type { SpriteKind } from "../components/PixelSprite";
 
 export type Character = {
@@ -143,23 +143,33 @@ export function getLessonLines(
       session.content.summary,
       "Use your own words. Explain the main idea, connect two concepts, and give an example that shows why it works.",
     ];
-  const mappings = session.content.mappings;
+  const concepts = getEncounterConcepts(session, index);
   const subtopic = session.content.quiz[index]?.subtopic;
-  if (subtopic) {
-    const mapping = mappings.find((item) => item.concept === subtopic);
-    if (mapping)
-      return [
-        `${mapping.concept}. Think of it as ${mapping.analogy}.`,
-        mapping.explanation,
-      ];
-  }
-  const count = session.content.quiz.length;
-  const start = Math.floor((index * mappings.length) / count);
-  const end = Math.floor(((index + 1) * mappings.length) / count);
-  const assigned = mappings.slice(start, Math.max(start + 1, end));
-  const lines = assigned.flatMap((mapping) => [
+  if (subtopic && concepts[0]?.concept === subtopic)
+    return [
+      `${concepts[0].concept}. Think of it as ${concepts[0].analogy}.`,
+      concepts[0].explanation,
+    ];
+  const lines = concepts.flatMap((mapping) => [
     `${mapping.concept}. Think of it as ${mapping.analogy.charAt(0).toLowerCase() + mapping.analogy.slice(1)}.`,
     mapping.explanation,
   ]);
   return index === 0 ? [session.content.overview, ...lines] : lines;
+}
+
+// The concepts a (non-boss) opponent teaches: its question's subtopic, or an even share of the mappings.
+export function getEncounterConcepts(
+  session: StudySession,
+  index: number,
+): Mapping[] {
+  const mappings = session.content.mappings;
+  const subtopic = session.content.quiz[index]?.subtopic;
+  if (subtopic) {
+    const mapping = mappings.find((item) => item.concept === subtopic);
+    if (mapping) return [mapping];
+  }
+  const count = session.content.quiz.length;
+  const start = Math.floor((index * mappings.length) / count);
+  const end = Math.floor(((index + 1) * mappings.length) / count);
+  return mappings.slice(start, Math.max(start + 1, end));
 }

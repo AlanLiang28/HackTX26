@@ -3,7 +3,14 @@ import { PixelIcon } from "./PixelIcon";
 import { PixelSprite } from "./PixelSprite";
 import { DialogueBox } from "./DialogueBox";
 import { BossChallenge } from "./BossChallenge";
-import { getCharacter, getLessonLines, worlds } from "../lib/characters";
+import { ConceptVoice } from "./ConceptVoice";
+import {
+  getCharacter,
+  getEncounterConcepts,
+  getLessonLines,
+  worlds,
+} from "../lib/characters";
+import { interestFor } from "../lib/adaptive";
 import type { StudySession, Theme } from "../lib/study";
 import type { GradedAnswer } from "../lib/adaptive";
 
@@ -40,6 +47,8 @@ export function Encounter({
 }) {
   const boss = index === session.content.quiz.length;
   const character = getCharacter(theme, index, boss);
+  // The boss gets no voice: hearing the concept explained would give away its challenge.
+  const concepts = boss ? [] : getEncounterConcepts(session, index);
   const lesson = [
     character.introduction,
     ...(boss && focus
@@ -220,6 +229,13 @@ export function Encounter({
           </div>
         </div>
       </section>
+      {concepts.length > 0 && (
+        <ConceptVoice
+          title={session.content.title}
+          interest={interestFor(theme)}
+          concepts={concepts}
+        />
+      )}
       <div className="encounter-content">
         {phase === "talk" && (
           <>

@@ -23,42 +23,49 @@ app.set("trust proxy", 1); // we're behind Caddy, so read the visitor's real IP
 // Same for the boss fight: only attempt (transcribe + grade) calls the model.
 const AI_ROUTES = [
   "/api/explain",
-  "/api/coach",
   "/api/sessions",
   "/api/game/start",
   "/api/sessions/:code/boss/attempt",
 ];
 
-// Per visitor: 5 AI requests per minute, 40 per day
-const perMinute = rateLimit({
-  windowMs: 60 * 1000,
-  limit: 5,
-  message: { error: "Slow down! Wait a minute and try again." },
-});
-const perDay = rateLimit({
-  windowMs: 24 * 60 * 60 * 1000,
-  limit: 40,
-  message: { error: "You've hit today's limit. Come back tomorrow!" },
-});
+// Voice explanations have their own, looser limits: the game makes one per concept
+// ahead of time (about 4-6 per game), which would blow through the general limit.
+const VOICE_ROUTES = ["/api/coach"];
 
-// Whole site: hard cap on AI calls per day, so costs can't run away
-let aiCallsToday = 0;
-let currentDay = new Date().toDateString();
-const MAX_AI_CALLS_PER_DAY = 300;
+// Whole site: hard cap on calls per day, so costs can't run away
+function dailyBudget(max: number) {
+  let callsToday = 0;
+  let currentDay = new Date().toDateString();
+  return (_req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const today = new Date().toDateString();
+    if (today !== currentDay) {
+      currentDay = today;
+      callsToday = 0;
+    }
+    if (callsToday >= max) {
+      res.status(503).json({ error: "The app hit its daily AI budget. Try again tomorrow." });
+      return;
+    }
+    callsToday++;
+    next();
+  };
+}
 
-app.post(AI_ROUTES, perMinute, perDay, (_req, res, next) => {
-  const today = new Date().toDateString();
-  if (today !== currentDay) {
-    currentDay = today;
-    aiCallsToday = 0;
-  }
-  if (aiCallsToday >= MAX_AI_CALLS_PER_DAY) {
-    res.status(503).json({ error: "The app hit its daily AI budget. Try again tomorrow." });
-    return;
-  }
-  aiCallsToday++;
-  next();
-});
+// Per visitor: 5 AI requests per minute, 40 per day; site-wide 300 per day
+app.post(
+  AI_ROUTES,
+  rateLimit({ windowMs: 60 * 1000, limit: 5, message: { error: "Slow down! Wait a minute and try again." } }),
+  rateLimit({ windowMs: 24 * 60 * 60 * 1000, limit: 40, message: { error: "You've hit today's limit. Come back tomorrow!" } }),
+  dailyBudget(300),
+);
+
+// Per visitor: 12 voices per minute, 100 per day; site-wide 1000 per day
+app.post(
+  VOICE_ROUTES,
+  rateLimit({ windowMs: 60 * 1000, limit: 12, message: { error: "Slow down! Wait a minute and try again." } }),
+  rateLimit({ windowMs: 24 * 60 * 60 * 1000, limit: 100, message: { error: "You've hit today's voice limit. Come back tomorrow!" } }),
+  dailyBudget(1000),
+);
 
 // Battle mode. Mounted BEFORE express.json() because it brings its own JSON parser.
 app.use("/api/game", gameRouter);
