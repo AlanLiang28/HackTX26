@@ -905,13 +905,6 @@ export default function App() {
           <span className="location-dot" />
           {worlds[theme].location}
         </span>
-        <span>
-          {screen === "teacher"
-            ? "TEACHER DESK"
-            : demo && session
-              ? "SINGLE PLAYER · DEMO"
-              : "SOLO STUDY · PARTY BOSS"}
-        </span>
       </footer>
 
       {overlay === "help" && (
