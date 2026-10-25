@@ -1,4 +1,4 @@
-# StudyRaid
+# fairytails
 
 A pixel-art study adventure built with React, TypeScript, Vite, and Express. Study your own notes or join a classroom, learn through one of two fixed worlds (**Sports** and **Fantasy**), then explain the concepts with a small party.
 
@@ -33,7 +33,7 @@ The home screen has three entry points, all using the same paper panels, local p
 
 1. **Bring my notes.** Choose Sports or Fantasy, add a name and preset interest chips, then upload TXT/Markdown or paste up to 20,000 characters. This starts an independent student through `/api/free-agents`. Interest tags are for matching; users cannot enter custom worlds.
 2. **Join a class.** Enter the teacher's six-character code, a name, and interests. Choose a world and start the class lesson. Students share the class's cached world packs and do not need to supply notes.
-3. **Teacher desk.** Create a class in two steps: class details, then study material. Save the private teacher key when it is first shown. The browser remembers classroom access; another device can open the dashboard with the class code and teacher key. The dashboard shows students, readiness, parties, and topics that need review.
+3. **Teacher desk.** Create a class in two steps: class details, then study material. Choose Upload to browse or drag in a TXT/Markdown file (up to 1 MB and 20,000 characters), or choose Paste text. Switch to Paste text to review or edit uploaded material before creating the class. Save the private teacher key when it is first shown. The browser remembers classroom access; another device can open the dashboard with the class code and teacher key. The dashboard shows students, readiness, parties, and topics that need review.
 
 Student adventures retain a **vertical foes list** and the existing character dialogue. Live solo rounds have six encounters and three lives. Missed concepts receive priority in later questions. Every class/free-agent answer is logged by the backend.
 

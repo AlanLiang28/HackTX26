@@ -6,6 +6,9 @@
   <path fill="#355a40" d="M4 0h24v4h4v24h-4v4H4v-4H0V4h4z" />
   <path
     fill="#fff8da"
-    d="M21 5h6v6h-3v3h-3v3h-3v3h3v3h-6v-3h-3v3H9v4H5v-4h4v-3h3v-3H9v-6h3v3h3v-3h3V8h3z"
+    d="M4 7h9v2h6V7h9v18h-9v2h-6v-2H4z"
   />
+  <path fill="#e8d5a0" d="M19 9h7v14h-7v2h-2V11h2z" />
+  <path fill="#355a40" d="M15 11h2v14h-2z" />
+  <path fill="#b77a3b" d="M22 7h3v10h-1v-1h-1v1h-1z" />
 </svg>

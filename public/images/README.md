@@ -1,4 +1,4 @@
-# StudyRaid artwork
+# fairytails artwork
 
 Original background assets generated with the built-in ImageGen tool for this project. All final assets are saved in this directory. The two world cards reuse these images.
 

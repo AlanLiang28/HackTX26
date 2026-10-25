@@ -7,6 +7,7 @@ import {
   remember,
 } from "../lib/classroom";
 import { usePolling } from "../lib/usePolling";
+import { readStudyFile } from "../lib/material";
 import { PixelIcon } from "./PixelIcon";
 import { PixelSprite } from "./PixelSprite";
 import { Notice } from "./CommunityScreens";
@@ -254,6 +255,10 @@ export function TeacherDesk({ onBusy }: { onBusy: (busy: boolean) => void }) {
   const [teacherName, setTeacherName] = useState("");
   const [level, setLevel] = useState("high school");
   const [material, setMaterial] = useState("");
+  const [materialTab, setMaterialTab] = useState<"upload" | "paste">("upload");
+  const [filename, setFilename] = useState("");
+  const [reading, setReading] = useState(false);
+  const [dragging, setDragging] = useState(false);
   const [code, setCode] = useState("");
   const [token, setToken] = useState("");
   const [freshKey, setFreshKey] = useState(false);
@@ -261,11 +266,40 @@ export function TeacherDesk({ onBusy }: { onBusy: (busy: boolean) => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const pending = useRef<AbortController | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const fileRead = useRef(0);
   useEffect(() => {
-    onBusy(busy);
+    onBusy(busy || reading);
     return () => onBusy(false);
-  }, [busy, onBusy]);
-  useEffect(() => () => pending.current?.abort(), []);
+  }, [busy, reading, onBusy]);
+  useEffect(
+    () => () => {
+      pending.current?.abort();
+      fileRead.current++;
+    },
+    [],
+  );
+  async function loadFile(file?: File) {
+    if (!file || busy || reading) return;
+    const request = ++fileRead.current;
+    setReading(true);
+    setError("");
+    try {
+      const content = await readStudyFile(file);
+      if (request !== fileRead.current) return;
+      setMaterial(content);
+      setFilename(file.name);
+    } catch (err) {
+      if (request === fileRead.current)
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Could not read that file. Please try again.",
+        );
+    } finally {
+      if (request === fileRead.current) setReading(false);
+    }
+  }
   function save(saved: SavedClass) {
     const next = [saved, ...classes.filter((cls) => cls.code !== saved.code)];
     setStored(remember("classes", next));
@@ -273,7 +307,7 @@ export function TeacherDesk({ onBusy }: { onBusy: (busy: boolean) => void }) {
     setSelected(saved);
   }
   async function submit() {
-    if (busy) return;
+    if (busy || reading) return;
     setBusy(true);
     setError("");
     const controller = new AbortController();
@@ -304,6 +338,8 @@ export function TeacherDesk({ onBusy }: { onBusy: (busy: boolean) => void }) {
           save(saved);
           setFreshKey(true);
           setMaterial("");
+          setMaterialTab("upload");
+          setFilename("");
           setName("");
         }
       }
@@ -449,21 +485,124 @@ export function TeacherDesk({ onBusy }: { onBusy: (busy: boolean) => void }) {
               <p className="field-help">
                 {name} · {level}
               </p>
-              <label className="field-label">
-                Class study material
-                <textarea
-                  value={material}
-                  onChange={(event) => setMaterial(event.target.value)}
-                  maxLength={20000}
-                  rows={8}
-                  required
-                  disabled={busy}
-                  placeholder="Paste the notes your class will study…"
+              <div>
+                <div className="section-heading">
+                  <label
+                    htmlFor={
+                      materialTab === "paste"
+                        ? "class-study-notes"
+                        : "class-study-file"
+                    }
+                  >
+                    Class study material
+                  </label>
+                  <div
+                    className="material-tabs"
+                    role="group"
+                    aria-label="Class study material input method"
+                  >
+                    <button
+                      type="button"
+                      className={materialTab === "upload" ? "active" : ""}
+                      aria-pressed={materialTab === "upload"}
+                      disabled={busy || reading}
+                      onClick={() => {
+                        setMaterialTab("upload");
+                        setError("");
+                      }}
+                    >
+                      Upload
+                    </button>
+                    <button
+                      type="button"
+                      className={materialTab === "paste" ? "active" : ""}
+                      aria-pressed={materialTab === "paste"}
+                      disabled={busy || reading}
+                      onClick={() => {
+                        setMaterialTab("paste");
+                        setDragging(false);
+                        setError("");
+                      }}
+                    >
+                      Paste text
+                    </button>
+                  </div>
+                </div>
+                <input
+                  ref={fileInput}
+                  id="class-study-file"
+                  aria-label="Upload class study material"
+                  className="visually-hidden"
+                  tabIndex={-1}
+                  type="file"
+                  accept=".txt,.md,text/plain,text/markdown"
+                  disabled={busy || reading}
+                  onChange={(event) => {
+                    void loadFile(event.target.files?.[0]);
+                    event.target.value = "";
+                  }}
                 />
-              </label>
-              <span className="field-help">
-                {material.length.toLocaleString()}/20,000 characters
-              </span>
+                {materialTab === "upload" ? (
+                  <button
+                    type="button"
+                    className={`upload-zone ${dragging ? "dragging" : ""} ${material.trim() ? "has-file" : ""}`}
+                    disabled={busy || reading}
+                    aria-describedby="class-file-help"
+                    onClick={() => fileInput.current?.click()}
+                    onDragOver={(event) => {
+                      event.preventDefault();
+                      if (!busy && !reading) setDragging(true);
+                    }}
+                    onDragLeave={() => setDragging(false)}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      setDragging(false);
+                      void loadFile(event.dataTransfer.files[0]);
+                    }}
+                  >
+                    <PixelIcon
+                      name={material.trim() ? "file" : "upload"}
+                      size={30}
+                    />
+                    <strong>
+                      {reading
+                        ? "Reading your notes…"
+                        : filename ||
+                          (material.trim()
+                            ? "Your pasted notes are ready"
+                            : "Drop class notes here")}
+                    </strong>
+                    <span>
+                      {material.trim()
+                        ? `${material.length.toLocaleString()} characters · click to replace`
+                        : "or browse files · TXT or Markdown"}
+                    </span>
+                    <small id="class-file-help">
+                      Up to 1 MB and 20,000 characters. Paste text from PDFs or slides.
+                    </small>
+                  </button>
+                ) : (
+                  <div className="notes-wrapper">
+                    <textarea
+                      id="class-study-notes"
+                      value={material}
+                      onChange={(event) => {
+                        setMaterial(event.target.value);
+                        setFilename("");
+                        setError("");
+                      }}
+                      maxLength={20000}
+                      rows={8}
+                      required
+                      disabled={busy || reading}
+                      placeholder="Paste the notes your class will study…"
+                    />
+                    <span className="character-count">
+                      {material.length.toLocaleString()} / 20,000 characters
+                    </span>
+                  </div>
+                )}
+              </div>
               <p className="field-help">
                 Students choose Sports or Fantasy. Both use this lesson.
               </p>
@@ -499,14 +638,19 @@ export function TeacherDesk({ onBusy }: { onBusy: (busy: boolean) => void }) {
             </>
           )}
           {error && <Notice>{error}</Notice>}
-          <button className="primary-button full-width" disabled={busy}>
-            {busy
-              ? "Opening your classroom…"
-              : view === "details"
-                ? "Continue to lesson"
-                : view === "recover"
-                  ? "Open dashboard"
-                  : "Create class"}
+          <button
+            className="primary-button full-width"
+            disabled={busy || reading || (view === "material" && !material.trim())}
+          >
+            {reading
+              ? "Reading your notes…"
+              : busy
+                ? "Opening your classroom…"
+                : view === "details"
+                  ? "Continue to lesson"
+                  : view === "recover"
+                    ? "Open dashboard"
+                    : "Create class"}
             <PixelIcon name="arrow" size={16} />
           </button>
         </form>
@@ -514,7 +658,7 @@ export function TeacherDesk({ onBusy }: { onBusy: (busy: boolean) => void }) {
       {view !== "list" && (
         <button
           className="below-back text-button"
-          disabled={busy}
+          disabled={busy || reading}
           onClick={() => {
             setView(view === "material" ? "details" : "list");
             setError("");

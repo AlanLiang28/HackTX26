@@ -30,6 +30,7 @@ import {
 } from "./lib/study";
 import { getCharacter, worlds } from "./lib/characters";
 import { prefetchVoices } from "./lib/voice";
+import { readStudyFile } from "./lib/material";
 import type { QuestRecord, StudySession, Theme } from "./lib/study";
 import "./App.css";
 import "./community.css";
@@ -296,24 +297,8 @@ export default function App() {
 
   async function loadFile(file: File) {
     setError("");
-    if (!/\.(txt|md)$/i.test(file.name)) {
-      setError(
-        "Choose a TXT or Markdown file. For PDFs or slides, paste the text instead.",
-      );
-      return;
-    }
-    if (file.size > 1024 * 1024) {
-      setError("Choose a file under 1 MB, or paste a shorter excerpt.");
-      return;
-    }
     try {
-      const content = await file.text();
-      if (!content.trim())
-        throw new Error(
-          "That file is empty. Choose another file or paste your notes.",
-        );
-      if (content.length > 20000)
-        throw new Error("Choose a shorter excerpt, up to 20,000 characters.");
+      const content = await readStudyFile(file);
       setNotes(content);
       setFilename(file.name);
     } catch (err) {
@@ -514,7 +499,7 @@ export default function App() {
       <header className="site-header">
         <button
           className="brand"
-          aria-label="StudyRaid home"
+          aria-label="fairytails home"
           disabled={loading || gameBusy}
           onClick={() =>
             setupScreens.includes(screen) || screen === "results"
@@ -523,10 +508,10 @@ export default function App() {
           }
         >
           <span className="brand-mark">
-            <PixelIcon name="sword" size={25} />
+            <PixelIcon name="book" size={25} />
           </span>
           <span>
-            study<span className="brand-accent">raid</span>
+            fairy<span className="brand-accent">tails</span>
             <span className="brand-period">.</span>
           </span>
         </button>
