@@ -3,12 +3,14 @@
 import express from "express";
 import path from "node:path";
 import pg from "pg";
+import { GoogleGenAI } from "@google/genai";
 import OpenAI from "openai";
 import { registerCoachRoute, warmConceptVoice } from "./coach.ts";
 import rateLimit from "express-rate-limit";
 import { gameRouter, onPackConcept } from "./game-routes.ts";
 import { generateText, parseJsonLoose, LlmError } from "./llm.ts";
 import { bossRouter } from "./boss.ts";
+import { classRouter } from "./classes.ts";
 
 process.loadEnvFile();
 
@@ -25,6 +27,8 @@ const AI_ROUTES = [
   "/api/sessions",
   "/api/game/start",
   "/api/sessions/:code/boss/attempt",
+  "/api/classes", // creating a class builds its two game packs; class plays reuse them, so they stay unlimited
+  "/api/free-agents", // signing up builds the free agent's pack
 ];
 
 // Voice explanations have their own, looser limits: the game makes one per concept
@@ -81,6 +85,8 @@ const db = new pg.Pool({
 });
 
 // ---- Model: Gemini (see llm.ts) ----
+// Classes (classes.ts) use this client directly for embeddings; text calls go through llm.ts.
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 // ---- Boss fight models (boss.ts) ----
 // Muse (Meta) handles voice transcription only; null without a key, so transcription falls back to Gemini.
@@ -162,6 +168,7 @@ app.get("/api/stats", async (_req, res) => {
 
 // ---- Part 3: boss fight (must stay above the static site + catch-all) ----
 app.use(bossRouter({ db, muse }));
+app.use(classRouter({ db, ai })); // classes, free agents + matching; groups play the boss above (docs/classes.md)
 
 // ---- Serve the built React site (after `npm run build`) ----
 app.use(express.static(path.resolve("dist")));

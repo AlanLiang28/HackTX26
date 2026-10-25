@@ -44,7 +44,7 @@ type Subtopic = {
   analogy: string;
 };
 type Boss = { name: string; emoji: string; intro: string };
-type Pack = {
+export type Pack = {
   title: string;
   overview: string;
   summary: string;
@@ -82,8 +82,9 @@ type Game = {
   createdAt: number;
   pack: Pack;
   players: Record<string, Player>;
+  onAnswer?: (subtopic: string, correct: boolean, phase: Phase) => void; // class games log answers (classes.ts)
 };
-type StartInput = {
+export type StartInput = {
   topic: string;
   interest: string;
   level: string;
@@ -293,15 +294,17 @@ function announceConcepts(text: string, interest: string, announced: Set<string>
   }
 }
 
-async function generatePack(input: StartInput): Promise<Pack> {
+// warmVoices: announce concepts as they stream (onPackConcept). Only /start asks, since its player is waiting;
+// class packs (classes.ts) are built ahead of time and would spend the small daily TTS quota on unheard voices.
+export async function generatePack(input: StartInput, warmVoices = false): Promise<Pack> {
   // API errors (bad key, rate limit) throw an LlmError straight away and are not retried.
   // Only a malformed answer is worth a second try.
   let lastError: unknown;
   const announced = new Set<string>();
   for (let attempt = 0; attempt < 2; attempt++) {
-    const text = await streamText(buildPackPrompt(input), (soFar) =>
-      announceConcepts(soFar, input.interest, announced),
-    );
+    const text = await streamText(buildPackPrompt(input), (soFar) => {
+      if (warmVoices) announceConcepts(soFar, input.interest, announced);
+    });
     try {
       return normalizePack(parseJsonLoose(text));
     } catch (e) {
@@ -438,6 +441,35 @@ function chooseQuestion(game: Game, player: Player): Question {
   return pick(fresh.length > 0 ? fresh : all);
 }
 
+// Used by /start and by class games (classes.ts), which reuse one pack per class and theme.
+export function createGame(
+  pack: Pack,
+  playerName: string,
+  onAnswer?: Game["onAnswer"],
+) {
+  // Drop stale games so memory doesn't grow forever.
+  const now = Date.now();
+  for (const [id, g] of games)
+    if (now - g.createdAt > GAME_TTL_MS) games.delete(id);
+
+  const player = newPlayer(pack, randomUUID(), playerName);
+  const game: Game = {
+    id: randomUUID(),
+    mode: "solo",
+    createdAt: now,
+    pack,
+    players: { [player.id]: player },
+    onAnswer,
+  };
+  games.set(game.id, game);
+  return {
+    gameId: game.id,
+    playerId: player.id,
+    pack: publicPack(pack),
+    state: playerView(game, player),
+  };
+}
+
 function lookup(
   req: Request,
   res: Response,
@@ -490,28 +522,8 @@ gameRouter.post("/start", async (req, res) => {
     return;
   }
 
-  // Drop stale games so memory doesn't grow forever.
-  const now = Date.now();
-  for (const [id, g] of games)
-    if (now - g.createdAt > GAME_TTL_MS) games.delete(id);
-
   try {
-    const pack = await generatePack(input);
-    const player = newPlayer(pack, randomUUID(), input.playerName);
-    const game: Game = {
-      id: randomUUID(),
-      mode: "solo",
-      createdAt: now,
-      pack,
-      players: { [player.id]: player },
-    };
-    games.set(game.id, game);
-    res.json({
-      gameId: game.id,
-      playerId: player.id,
-      pack: publicPack(pack),
-      state: playerView(game, player),
-    });
+    res.json(createGame(await generatePack(input, true), input.playerName));
   } catch (e) {
     console.error("game start failed:", e);
     res
@@ -602,6 +614,11 @@ gameRouter.post("/:gameId/answer", (req, res) => {
   else if (player.completed >= ENCOUNTERS_BEFORE_BOSS)
     player.phase = "boss_ready";
 
+  game.onAnswer?.(
+    game.pack.subtopics.find((s) => s.id === question.subtopic)!.name,
+    correct,
+    player.phase,
+  );
   player.lastAnswer = {
     questionId: question.id,
     choice,

@@ -28,7 +28,7 @@ The backend requires the existing environment configuration and database setup. 
 5. **Boss:** the live boss focuses on your weakest tested concept. Speak or type an explanation, review it, and complete an explicit self-assessment. Opening notes does not erase the explanation.
 6. **Victory:** see your first-attempt score, characters met, and questions worth reviewing. Play again or start a new adventure. Completed quests are saved on this device.
 
-Multiplayer is deferred. There are no party, team, or room controls in the current interface.
+The interface is single-player for now. The backend for classes and group play is ready: see [Classes and matching](docs/classes.md).
 
 ## Character art
 
@@ -50,10 +50,12 @@ The existing frontend now uses Joshua's `game-routes.ts` API through `src/lib/ad
 
 Games are held in server memory, with stale games cleaned up when another game starts (three-hour threshold). Server restarts discard active runs. Quest history in this frontend remains local to the device.
 
+**Classes** (`classes.ts`, [docs/classes.md](docs/classes.md)): a teacher creates a class from their material, and students join with a code and their interests. Students play phase 1 alone, with every answer logged to Tiger Data. They then match with classmates who share their interests and fight the boss together. **Free agents** (no class) bring their own notes and are matched with other free agents on interests and topic, using pgvector embeddings. A group is a regular boss session, so `boss.ts` runs it unchanged. Its key concepts are the group's weakest subtopics.
+
 Backend-owned work still needed:
 
 - AI assessment of boss explanations and follow-up questions. The current boss is explicitly labeled **practice / self-assessed**.
-- Multiplayer, including rooms and synchronization, is deferred to a later version.
+- Frontend screens for classes, matching, and the group boss fight (the backend is in `classes.ts` and `boss.ts`).
 - PDF and slide extraction. Currently users can paste text from those formats or upload TXT/Markdown.
 
 Speech recognition availability depends on the browser and microphone permission. Typed explanations always work. The frontend does not upload or store audio.

@@ -72,4 +72,54 @@ await client.query(
 );
 
 console.log("Tables 'sessions', 'players', 'boss_fights', 'boss_attempts' are ready.");
+
+// Classes (classes.ts, docs/classes.md). A matched group IS a sessions row, so boss.ts runs it unchanged.
+await client.query(`
+  CREATE TABLE IF NOT EXISTS classes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    code TEXT UNIQUE NOT NULL,
+    name TEXT NOT NULL,
+    teacher_name TEXT NOT NULL,
+    teacher_token TEXT NOT NULL,
+    material TEXT NOT NULL,
+    level TEXT,
+    packs JSONB NOT NULL DEFAULT '{}',   -- { fantasy?, sports? } game packs incl. answer keys: server-side only
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+  CREATE TABLE IF NOT EXISTS class_members (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    class_id UUID NOT NULL REFERENCES classes(id),
+    name TEXT NOT NULL,
+    interests TEXT[] NOT NULL DEFAULT '{}',
+    theme TEXT,                          -- last world played: 'sports' | 'fantasy'
+    ready_at TIMESTAMPTZ,                -- finished phase 1 (reached the boss)
+    session_id UUID REFERENCES sessions(id),  -- their group; null until matched
+    player_id UUID REFERENCES players(id),    -- their id in that group's boss fight
+    joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+  ALTER TABLE sessions ADD COLUMN IF NOT EXISTS class_id UUID REFERENCES classes(id);
+  -- Phase 1 answer log. Hypertable, same reason as boss_attempts.
+  CREATE TABLE IF NOT EXISTS class_answers (
+    class_id UUID NOT NULL,
+    member_id UUID NOT NULL,
+    subtopic TEXT NOT NULL,
+    correct BOOLEAN NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+`);
+await client.query(
+  "SELECT create_hypertable('class_answers', by_range('created_at'), if_not_exists => TRUE)"
+);
+
+// Free agents: class_members rows with no class. They bring their own material (pack), and pgvector
+// matches them on topic. Written as ALTERs so databases made before free agents upgrade too.
+await client.query(`
+  CREATE EXTENSION IF NOT EXISTS vector;
+  ALTER TABLE class_members ALTER COLUMN class_id DROP NOT NULL;
+  ALTER TABLE class_members ADD COLUMN IF NOT EXISTS pack JSONB;                -- free agents only
+  ALTER TABLE class_members ADD COLUMN IF NOT EXISTS topic_embedding vector(768); -- free agents only
+  ALTER TABLE class_answers ALTER COLUMN class_id DROP NOT NULL;
+`);
+
+console.log("Tables 'classes', 'class_members', 'class_answers' are ready (with free agents).");
 await client.end();
