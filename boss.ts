@@ -2,8 +2,8 @@
 // Game state is never stored: it's derived from boss_attempts + the roster on every read.
 import express from "express";
 import type pg from "pg";
-import type { GoogleGenAI } from "@google/genai";
 import type OpenAI from "openai";
+import { modelName, withGeminiFallback } from "./llm.ts";
 
 export const PASS_MIN_CORRECTNESS = 3;  // out of 4. Correctness gates everything.
 export const PASS_MIN_TOTAL = 11;       // out of 16
@@ -117,9 +117,7 @@ ${transcript.replace(/<\/?student_speech>/gi, "")}
 const clamp = (n: unknown) => Math.min(4, Math.max(0, Math.round(Number(n) || 0)));
 
 // muse is only used for voice transcription; grading always uses Gemini.
-export function bossRouter({ db, ai, muse }: { db: pg.Pool; ai: GoogleGenAI; muse: OpenAI | null }) {
-  const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-3.5-flash"; // read here: imports run before loadEnvFile()
-
+export function bossRouter({ db, muse }: { db: pg.Pool; muse: OpenAI | null }) {
   async function transcribe(wav: Buffer): Promise<string> {
     if (muse) {
       const form = new FormData();
@@ -133,24 +131,25 @@ export function bossRouter({ db, ai, muse }: { db: pg.Pool; ai: GoogleGenAI; mus
       if (!r.ok) throw new Error(`Muse transcribe ${r.status}: ${(await r.text()).slice(0, 300)}`);
       return ((await r.json()) as { transcript?: string }).transcript ?? "";
     } else {
-      const r = await ai.models.generateContent({
-        model: GEMINI_MODEL,
+      // Falls back to GEMINI_FALLBACK_API_KEY when the main key is out of quota (see llm.ts).
+      const r = await withGeminiFallback((ai) => ai.models.generateContent({
+        model: modelName(),
         contents: [
           { inlineData: { mimeType: "audio/wav", data: wav.toString("base64") } },
           // The no-speech sentence keeps Gemini from returning "[beep]" etc., so 422 no_speech still fires.
           { text: "Transcribe this audio verbatim. Return only the transcript. If no one is speaking, return an empty response." },
         ],
-      });
+      }));
       return r.text ?? "";
     }
   }
 
   async function grade(c: Concept, level: string | null, transcript: string): Promise<Rubric> {
     const prompt = gradingPrompt(c, level, transcript);
-    const r = await ai.models.generateContent({
-      model: GEMINI_MODEL, contents: prompt,
+    const r = await withGeminiFallback((ai) => ai.models.generateContent({
+      model: modelName(), contents: prompt,
       config: { responseMimeType: "application/json", responseJsonSchema: RUBRIC_SCHEMA },
-    });
+    }));
     const g = JSON.parse(r.text ?? "");
     return {
       correctness: clamp(g.correctness), depth: clamp(g.depth),

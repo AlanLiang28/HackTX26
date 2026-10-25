@@ -3,7 +3,6 @@
 import express from "express";
 import path from "node:path";
 import pg from "pg";
-import { GoogleGenAI } from "@google/genai";
 import OpenAI from "openai";
 import { registerCoachRoute } from "./coach.ts";
 import rateLimit from "express-rate-limit";
@@ -82,7 +81,6 @@ const db = new pg.Pool({
 // ---- Model: Gemini (see llm.ts) ----
 
 // ---- Boss fight models (boss.ts) ----
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 // Muse (Meta) handles voice transcription only; null without a key, so transcription falls back to Gemini.
 const muse = process.env.META_API_KEY
   ? new OpenAI({ apiKey: process.env.META_API_KEY, baseURL: "https://api.meta.ai/v1" })
@@ -161,7 +159,7 @@ app.get("/api/stats", async (_req, res) => {
 });
 
 // ---- Part 3: boss fight (must stay above the static site + catch-all) ----
-app.use(bossRouter({ db, ai, muse }));
+app.use(bossRouter({ db, muse }));
 
 // ---- Serve the built React site (after `npm run build`) ----
 app.use(express.static(path.resolve("dist")));
