@@ -57,7 +57,6 @@ export function Encounter({
   const [gradeError, setGradeError] = useState("");
   const grading = useRef(false);
   const resolved = passed || graded !== null;
-  const [bossChecks, setBossChecks] = useState(0);
   const options = useRef<HTMLDetailsElement>(null);
   useEffect(() => {
     function dismiss(event: PointerEvent) {
@@ -198,27 +197,6 @@ export function Encounter({
           <span className="combat-particle particle-one">✦</span>
           <span className="combat-particle particle-two">·</span>
         </div>
-        <div className="opponent-health">
-          <span className="opponent-health-label">
-            {passed ? "UNDERSTOOD" : boss ? "UNDERSTANDING" : "RESOLVE"}
-          </span>
-          <div
-            className="hp-track"
-            role="progressbar"
-            aria-label={`${character.name} resolve`}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={
-              passed ? 0 : boss ? 100 - (bossChecks / 3) * 100 : 100
-            }
-          >
-            <span
-              style={{
-                width: `${passed ? 0 : boss ? 100 - (bossChecks / 3) * 100 : 100}%`,
-              }}
-            />
-          </div>
-        </div>
       </section>
       <div className="encounter-content">
         {phase === "talk" && (
@@ -292,7 +270,6 @@ export function Encounter({
             session={session}
             focus={focus}
             onComplete={onFinish}
-            onProgress={setBossChecks}
           />
         )}
         {phase === "feedback" && (

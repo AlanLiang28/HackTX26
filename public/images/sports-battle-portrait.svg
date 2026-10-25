@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 320" shape-rendering="crispEdges">
+  <!-- Portrait stadium with the floodlights and stands framing the opponent. -->
+  <path fill="#8eabb4" d="M0 0h180v320H0z"/>
+  <path fill="#b2b7b0" d="M0 56h180v48H0z"/>
+  <path fill="#d4bba6" d="M0 98h180v30H0z"/>
+  <path fill="#e3c397" d="M0 122h180v28H0z"/>
+  <path fill="#f7d99e" d="M128 69h12v4h4v12h-4v4h-12v-4h-4V73h4z"/>
+  <g fill="#e3d5bd"><path d="M48 40h18v4h10v5H36v-5h12zM109 101h17v4h12v5H98v-5h11zM151 24h14v4h10v5h-35v-5h11z"/></g>
+  <path fill="#82968b" d="M0 123h16v-10h17v6h19v-12h17v12h19v-7h18v9h20v-11h19v10h19v-7h16v34H0z"/>
+  <path fill="#637b7b" d="M0 112h22v6h15v7h18v7h15v14H0zM180 112h-22v6h-15v7h-18v7h-15v14h70z"/>
+  <g fill="#97aaa0"><path d="M0 116h22v3H0zM0 126h37v3H0zM0 136h55v3H0zM158 116h22v3h-22zM143 126h37v3h-37zM125 136h55v3h-55z"/></g>
+  <path fill="#657d7b" d="M17 83h3v57h-3zM160 83h3v57h-3z"/>
+  <path fill="#e3d5ac" d="M7 73h24v12H7zM150 73h24v12h-24z"/>
+  <g fill="#f8eac6"><path d="M9 75h5v3H9zM17 75h5v3h-5zM25 75h4v3h-4zM9 80h5v3H9zM17 80h5v3h-5zM25 80h4v3h-4zM152 75h5v3h-5zM160 75h5v3h-5zM168 75h4v3h-4zM152 80h5v3h-5zM160 80h5v3h-5zM168 80h4v3h-4z"/></g>
+  <path fill="#638864" d="M0 132h180v188H0z"/>
+  <path fill="#71946c" d="M0 167h180v28H0zM0 231h180v40H0zM0 305h180v15H0z"/>
+  <path fill="#4b755a" d="M0 143h180v4H0z"/>
+  <g fill="#d3d5b2">
+    <path d="M0 158h180v2H0zM0 195h180v2H0zM0 238h180v3H0zM0 291h180v3H0z"/>
+    <path d="M51 145h3L20 320h-4zM126 145h3l35 175h-4z"/>
+    <path d="M66 168h3v5h-3zM66 181h3v5h-3zM66 210h3v6h-3zM66 224h3v6h-3zM66 259h3v7h-3zM66 276h3v7h-3zM66 308h3v7h-3zM111 168h3v5h-3zM111 181h3v5h-3zM111 210h3v6h-3zM111 224h3v6h-3zM111 259h3v7h-3zM111 276h3v7h-3zM111 308h3v7h-3z"/>
+  </g>
+  <path fill="#c9a86c" d="M128 122h3v19h20v-19h3v22h-11v14h-4v-14h-11z"/>
+  <path fill="#f0ce88" d="M128 122h1v20h23v-20h2v22h-11v14h-2v-15h-13z"/>
+  <path fill="#d8c79d" d="M14 250h4v18h-4zM163 250h4v18h-4z"/>
+  <path fill="#b87751" d="M12 244h8v7h-8zM161 244h8v7h-8z"/>
+  <g fill="#89a176"><path d="M25 181h7v2h-7zM145 211h8v2h-8zM35 282h7v2h-7zM144 302h10v2h-10z"/></g>
+</svg>

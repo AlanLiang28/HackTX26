@@ -29,16 +29,12 @@ export function AdventureMap({
   return (
     <>
       <div className="page-intro">
-        <div className="eyebrow">
-          CHAPTER 03 · YOUR ADVENTURE AWAITS
-          {demo && <span className="small-badge">DEMO</span>}
-        </div>
         <h1>
           A few new faces.
           <br />
           <span>A whole lot to learn.</span>
         </h1>
-        <p>{session.content.title}</p>
+        {session.content.title && <p>{session.content.title}</p>}
       </div>
       <section
         className="adventure-panel pixel-panel"
@@ -46,7 +42,10 @@ export function AdventureMap({
       >
         <div className="trail-heading">
           <div>
-            <span className="subject-label">{worlds[theme].location}</span>
+            <div className="trail-location">
+              <span className="subject-label">{worlds[theme].location}</span>
+              {demo && <span className="small-badge">DEMO</span>}
+            </div>
             <h2>Your path to understanding</h2>
           </div>
           <span className="trail-counter">
@@ -118,13 +117,6 @@ export function AdventureMap({
               </div>
             );
           })}
-        </div>
-        <div className="trail-tip">
-          <PixelIcon name="heart" size={17} />
-          <p>
-            Every character has something to teach you. Listen, learn, then make
-            your move.
-          </p>
         </div>
         <button
           className="primary-button full-width"

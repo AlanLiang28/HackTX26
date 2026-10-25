@@ -20,7 +20,7 @@ import {
 import type { AdaptiveGame, RemoteEncounter } from "./lib/adaptive";
 
 type Screen = "world" | "materials" | "journey" | "battle" | "results";
-type Overlay = "help" | "history" | "notes" | "leave" | "home" | null;
+type Overlay = "help" | "history" | "notes" | "home" | null;
 const setupScreens: Screen[] = ["world", "materials"];
 const navSteps = ["Your world", "Your notes", "Your adventure"];
 
@@ -306,7 +306,7 @@ export default function App() {
     saved.current = true;
     const record: QuestRecord = {
       id: crypto.randomUUID(),
-      title: session.content.title,
+      title: session.content.title || `${worlds[theme].name} demo`,
       theme,
       score: correct,
       total: session.content.quiz.length,
@@ -475,7 +475,10 @@ export default function App() {
                 adaptive?.state.phase === "game_over" ? "results" : "journey",
               )
             }
-            onLeave={() => setOverlay("leave")}
+            onLeave={() => {
+              if (hp === 0 && !adaptive) setHp(20);
+              setScreen("journey");
+            }}
             onRegroup={() => {
               setHp(20);
               setScreen("journey");
@@ -513,7 +516,7 @@ export default function App() {
                 {worlds[theme].name.toUpperCase()} ADVENTURE
                 {demo ? " · DEMO" : ""}
               </span>
-              <h2>{session.content.title}</h2>
+              {session.content.title && <h2>{session.content.title}</h2>}
               <div className="result-friends" aria-label="Characters you met">
                 {Array.from(
                   {
@@ -621,9 +624,6 @@ export default function App() {
           <span className="location-dot" />
           {worlds[theme].location}
         </span>
-        <span className="footer-tagline">
-          A little curiosity goes a long way.
-        </span>
         <span>SINGLE PLAYER · V0.2</span>
       </footer>
 
@@ -686,7 +686,9 @@ export default function App() {
           title={`Your ${worlds[theme].book.toLowerCase()}`}
           onClose={() => setOverlay(null)}
         >
-          <p className="modal-description">{session.content.title}</p>
+          {session.content.title && (
+            <p className="modal-description">{session.content.title}</p>
+          )}
           <p className="book-overview">{session.content.overview}</p>
           <div className="book-concepts">
             {session.content.mappings.map((mapping, index) => (
@@ -739,7 +741,11 @@ export default function App() {
                       />
                     </span>
                     <div>
-                      <strong>{record.title}</strong>
+                      <strong>
+                        {record.demo
+                          ? `${worlds[record.theme].name} demo`
+                          : record.title}
+                      </strong>
                       <small>
                         {worlds[record.theme].name} · {record.score}/
                         {record.total} first try ·{" "}
@@ -764,19 +770,13 @@ export default function App() {
           )}
         </Modal>
       )}
-      {(overlay === "leave" || overlay === "home") && (
+      {overlay === "home" && (
         <Modal
-          title={
-            overlay === "leave"
-              ? "Back to the trail?"
-              : "Start a new adventure?"
-          }
+          title="Start a new adventure?"
           onClose={() => setOverlay(null)}
         >
           <p className="modal-description">
-            {overlay === "leave"
-              ? "This conversation will restart. Your cleared encounters and first-attempt scores are safe."
-              : "Your current adventure will reset. Your study notes will stay here."}
+            Your current adventure will reset. Your study notes will stay here.
           </p>
           <div className="modal-actions">
             <button
@@ -787,16 +787,9 @@ export default function App() {
             </button>
             <button
               className="primary-button"
-              onClick={() => {
-                if (overlay === "home") goHome();
-                else {
-                  if (hp === 0 && !adaptive) setHp(20);
-                  setOverlay(null);
-                  setScreen("journey");
-                }
-              }}
+              onClick={goHome}
             >
-              Back to {overlay === "home" ? "camp" : "the trail"}
+              Back to camp
               <PixelIcon name="arrow" size={16} />
             </button>
           </div>

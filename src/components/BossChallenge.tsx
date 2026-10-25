@@ -24,12 +24,10 @@ type SpeechWindow = Window & {
 export function BossChallenge({
   session,
   onComplete,
-  onProgress,
   focus,
 }: {
   session: StudySession;
   onComplete: () => void;
-  onProgress: (checks: number) => void;
   focus?: string;
 }) {
   const mappings = [...session.content.mappings].sort(
@@ -200,7 +198,6 @@ export function BossChallenge({
                     position === index ? event.target.checked : value,
                   );
                   setChecks(updated);
-                  onProgress(updated.filter(Boolean).length);
                 }}
               />
               <span>{criterion}</span>
@@ -212,7 +209,6 @@ export function BossChallenge({
               onClick={() => {
                 setReview(false);
                 setChecks([false, false, false]);
-                onProgress(0);
               }}
             >
               Edit explanation

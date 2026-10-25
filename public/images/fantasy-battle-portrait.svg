@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 320" shape-rendering="crispEdges">
+  <!-- A portrait composition keeps the trees visible on small screens. -->
+  <defs>
+    <g id="pine">
+      <path fill="#3c6856" d="M14 0h8v6h6v6h6v8h6v8H0v-8h6v-8h8z"/>
+      <path fill="#315748" d="M8 20h26v6h6v10h6v8H-6v-8H0v-8h8z"/>
+      <path fill="#24483d" d="M2 36h32v6h6v8h8v10H-8V50h10z"/>
+      <path fill="#796b4e" d="M14 60h8v18h-8z"/>
+    </g>
+  </defs>
+  <path fill="#97b4ab" d="M0 0h180v320H0z"/>
+  <path fill="#b9c9b2" d="M0 52h180v55H0z"/>
+  <path fill="#d5d3ad" d="M0 100h180v44H0z"/>
+  <path fill="#f2e0ae" d="M129 37h12v4h4v12h-4v4h-12v-4h-4V41h4z"/>
+  <g fill="#e5dfbc"><path d="M61 62h17v4h11v5H48v-5h13zM141 87h16v4h12v5h-39v-5h11zM14 25h20v4h10v5H4v-5h10z"/></g>
+  <path fill="#8ca893" d="M0 120h20v-12h20v9h20v-15h19v14h22v-8h20v10h18v-12h22v13h19v33H0z"/>
+  <path fill="#72937e" d="M0 131h29v-9h21v8h22v-5h24v7h22v-11h21v9h23v-9h18v35H0z"/>
+  <path fill="#668865" d="M0 135h180v185H0z"/>
+  <path fill="#819a6a" d="M27 135h125v5h19v15H10v-15h17z"/>
+  <path fill="#9eac7b" d="M57 139h65v5h18v10h-9v6H43v-8H34v-8h23z"/>
+  <path fill="#b6b086" d="M79 146h25v18h9v24h14v26h14v34h21v72H22v-40h20v-39h18v-32h9v-29h10z"/>
+  <path fill="#c6bb93" d="M84 150h15v32h8v29h12v32h14v39h17v38H36v-31h20v-40h15v-34h7v-30h6z"/>
+  <use href="#pine" x="-12" y="68"/>
+  <use href="#pine" x="144" y="76"/>
+  <path fill="#41694f" d="M0 179h21v-9h18v13h17v18h-15v18H0zM137 180h15v-9h28v50h-29v-15h-14z"/>
+  <path fill="#345a46" d="M0 234h24v-10h18v16h15v18H37v23H0zM143 238h18v-12h19v65h-26v-18h-11z"/>
+  <path fill="#23493d" d="M0 286h24v-12h16v16h14v30H0zM137 300h16v-17h27v37h-43z"/>
+  <g fill="#a4bb72"><path d="M22 159h3v-6h3v6h3v-3h3v6h-6v3h-3v-3h-3zM153 242h3v-6h3v6h3v-3h3v6h-6v3h-3v-3h-3zM33 268h3v-6h3v6h6v3h-6v3h-3v-3h-3z"/></g>
+  <g fill="#b7b59a"><path d="M21 207h12v6H18v-3h3zM146 157h11v6h-15v-3h4z"/></g>
+  <g fill="#a39d79"><path d="M83 202h8v3h-8zM106 246h9v3h-9zM64 293h9v3h-9zM119 309h7v3h-7z"/></g>
+  <g fill="#e8cf86"><path d="M37 154h2v2h-2zM148 138h2v2h-2zM24 251h2v2h-2zM157 282h2v2h-2z"/></g>
+</svg>

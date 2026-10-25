@@ -17,15 +17,11 @@ export function WorldScreen({
   return (
     <>
       <div className="page-intro">
-        <div className="eyebrow">CHAPTER 01 · A WORLD OF POSSIBILITIES</div>
         <h1>
           Every great quest
           <br />
           <span>starts with your world.</span>
         </h1>
-        <p>
-          Learn through a world you love. Meet the characters who live there.
-        </p>
       </div>
       <div className="world-picker">
         {(["sports", "fantasy"] as Theme[]).map((option) => (
@@ -70,22 +66,6 @@ export function WorldScreen({
           <PixelIcon name="arrow" size={18} />
         </button>
       </div>
-      <div className="journey-preview">
-        <span>
-          <PixelIcon name="book" size={16} />
-          Meet your teachers
-        </span>
-        <i>···</i>
-        <span>
-          <PixelIcon name="sword" size={16} />
-          Fight with knowledge
-        </span>
-        <i>···</i>
-        <span>
-          <PixelIcon name="crown" size={17} />
-          Explain it to the boss
-        </span>
-      </div>
     </>
   );
 }
@@ -129,16 +109,9 @@ export function MaterialsScreen({
   return (
     <>
       <div className="page-intro">
-        <div className="eyebrow">CHAPTER 02 · PACK A LITTLE KNOWLEDGE</div>
         <h1>
-          What are we
-          <br />
-          <span>learning today?</span>
+          What are we <span>learning today?</span>
         </h1>
-        <p>
-          Your notes become the lessons. Your understanding becomes the
-          adventure.
-        </p>
       </div>
       <form className="material-panel pixel-panel" onSubmit={onSubmit}>
         <div className="guide-note">

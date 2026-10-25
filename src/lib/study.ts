@@ -43,9 +43,7 @@ export function getDemoSession(theme: Theme): StudySession {
     interest: fantasy ? "Fantasy" : "Sports",
     level: "high school",
     content: {
-      title: fantasy
-        ? "Momentum: a force to reckon with"
-        : "Momentum: the science behind the tackle",
+      title: "",
       overview: fantasy
         ? "Picture a heavily armored knight charging across a clearing. Their motion depends on both how much mass they carry and how fast they move. That combination is momentum—and it follows the same rules for a knight, a rolling cart, or a football player."
         : "Picture a running back charging down the field. Their motion depends on both their mass and their velocity. That combination is momentum, and it helps explain what happens when players collide.",

@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180" shape-rendering="crispEdges">
+  <!-- Original low-resolution forest clearing; deliberately quiet in the center. -->
+  <defs>
+    <g id="pine">
+      <path fill="#3c6856" d="M14 0h8v6h6v6h6v8h6v8H0v-8h6v-8h8z"/>
+      <path fill="#315748" d="M8 20h26v6h6v10h6v8H-6v-8H0v-8h8z"/>
+      <path fill="#24483d" d="M2 36h32v6h6v8h8v10H-8V50h10z"/>
+      <path fill="#796b4e" d="M14 60h8v18h-8z"/>
+      <path fill="#a19866" d="M14 60h3v15h-3z"/>
+    </g>
+    <g id="fern" fill="#a4bb72">
+      <path d="M0 6h3V0h3v6h3V3h3v6H6v3H3V9H0z"/>
+    </g>
+  </defs>
+  <path fill="#97b4ab" d="M0 0h320v180H0z"/>
+  <path fill="#b9c9b2" d="M0 24h320v34H0z"/>
+  <path fill="#d5d3ad" d="M0 48h320v35H0z"/>
+  <path fill="#f2e0ae" d="M230 16h12v4h4v12h-4v4h-12v-4h-4V20h4z"/>
+  <g fill="#e5dfbc">
+    <path d="M90 18h18v4h12v6H78v-5h12zM164 35h20v4h12v5h-44v-5h12z"/>
+    <path d="M24 37h17v4h12v5H14v-5h10zM276 8h18v4h9v5h-37v-5h10z"/>
+  </g>
+  <path fill="#8ca893" d="M0 70h18V58h20v8h18V52h22v8h22v12h20V62h20v8h22V55h18v8h22V50h20v12h24V57h20v12h24V52h24v18h26v40H0z"/>
+  <path fill="#72937e" d="M0 82h24V70h20v8h24V67h20v15h24V75h18v10h30V73h18v9h26V65h20v15h22V68h24v11h22V64h20v14h18v40H0z"/>
+  <path fill="#668865" d="M0 92h320v88H0z"/>
+  <path fill="#819a6a" d="M52 91h216v5h26v12H28V97h24z"/>
+  <path fill="#9eac7b" d="M96 96h128v5h22v7h-16v8H88v-8H76v-7h20z"/>
+  <path fill="#b6b086" d="M136 102h46v10h12v12h18v14h24v18h28v24H74v-16h26v-18h16v-17h10v-15h10z"/>
+  <path fill="#c6bb93" d="M143 107h31v15h15v15h18v18h22v25H98v-12h22v-24h12v-18h11z"/>
+  <g fill="#a39d79">
+    <path d="M137 124h10v3h-10zM174 149h15v3h-15zM123 165h12v3h-12zM206 171h8v3h-8z"/>
+  </g>
+  <use href="#pine" x="12" y="20"/>
+  <use href="#pine" x="60" y="36"/>
+  <use href="#pine" x="257" y="24"/>
+  <use href="#pine" x="292" y="8"/>
+  <path fill="#41694f" d="M0 120h17v-6h22v8h20v8h18v12H0zM248 124h20v-8h26v7h26v26h-72z"/>
+  <path fill="#345a46" d="M0 146h19v-8h20v6h14v13h20v23H0zM250 157h14v-13h22v-7h20v9h14v34h-70z"/>
+  <path fill="#23493d" d="M0 164h20v-9h19v11h20v14H0zM278 163h20v-10h22v27h-56v-9h14z"/>
+  <g fill="#b7b59a">
+    <path d="M88 111h13v6H85v-4h3zM249 105h15v8h-20v-5h5zM43 134h16v8H39v-5h4z"/>
+  </g>
+  <g fill="#7c8970">
+    <path d="M85 117h16v3H85zM244 113h20v3h-20zM39 142h20v3H39z"/>
+  </g>
+  <use href="#fern" x="25" y="108"/>
+  <use href="#fern" x="62" y="147"/>
+  <use href="#fern" x="279" y="130"/>
+  <use href="#fern" x="229" y="152"/>
+  <g fill="#e8cf86"><path d="M54 106h2v2h-2zM270 92h2v2h-2zM78 129h2v2h-2zM238 122h2v2h-2z"/></g>
+  <g fill="#d5aa91"><path d="M33 150h3v3h-3zM286 159h3v3h-3zM72 114h3v3h-3z"/></g>
+</svg>

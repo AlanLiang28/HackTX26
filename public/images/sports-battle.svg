@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180" shape-rendering="crispEdges">
+  <!-- Original low-resolution football field at sunset, with an open center. -->
+  <defs>
+    <g id="light">
+      <path fill="#657d7b" d="M10 12h3v62h-3zM2 12h20v3H2z"/>
+      <path fill="#e3d5ac" d="M0 0h24v13H0z"/>
+      <path fill="#f8eac6" d="M2 2h5v3H2zM10 2h5v3h-5zM18 2h4v3h-4zM2 7h5v3H2zM10 7h5v3h-5zM18 7h4v3h-4z"/>
+    </g>
+  </defs>
+  <path fill="#8eabb4" d="M0 0h320v180H0z"/>
+  <path fill="#b2b7b0" d="M0 24h320v32H0z"/>
+  <path fill="#d4bba6" d="M0 45h320v29H0z"/>
+  <path fill="#e3c397" d="M0 64h320v30H0z"/>
+  <path fill="#f7d99e" d="M241 29h14v4h4v14h-4v4h-14v-4h-4V33h4z"/>
+  <g fill="#e3d5bd">
+    <path d="M72 17h23v4h13v5H57v-5h15zM157 38h17v4h16v5h-46v-5h13zM280 14h19v4h12v5h-43v-5h12z"/>
+  </g>
+  <path fill="#82968b" d="M0 73h17v-9h20v5h20V58h19v8h17v8h24v-9h22v7h20V61h19v8h24V59h18v11h20V60h25v11h22v-6h22v8h18v-9h23v32H0z"/>
+  <path fill="#5e7b70" d="M0 82h320v22H0z"/>
+  <path fill="#637b7b" d="M0 59h42v7h22v7h23v7h25v7h21v13H0zM320 59h-42v7h-22v7h-23v7h-25v7h-21v13h133z"/>
+  <g fill="#97aaa0">
+    <path d="M0 63h39v3H0zM0 73h62v3H0zM0 83h86v3H0zM0 93h112v3H0z"/>
+    <path d="M281 63h39v3h-39zM258 73h62v3h-62zM234 83h86v3h-86zM208 93h112v3H208z"/>
+  </g>
+  <g fill="#b3b7a0">
+    <path d="M6 67h6v3H6zM24 67h7v3h-7zM13 77h6v3h-6zM35 77h7v3h-7zM53 87h7v3h-7zM18 87h6v3h-6zM73 96h8v3h-8z"/>
+    <path d="M289 67h7v3h-7zM307 67h7v3h-7zM274 77h7v3h-7zM299 77h6v3h-6zM259 87h7v3h-7zM288 87h7v3h-7zM237 96h8v3h-8z"/>
+  </g>
+  <use href="#light" x="18" y="15"/>
+  <use href="#light" x="280" y="15"/>
+  <g transform="translate(0 -36) scale(1 1.2)">
+  <path fill="#355e50" d="M0 101h320v79H0z"/>
+  <path fill="#638864" d="M22 103h276v5h22v72H0v-72h22z"/>
+  <path fill="#71946c" d="M0 119h320v15H0zM0 155h320v25H0z"/>
+  <path fill="#4b755a" d="M0 105h320v4H0zM0 176h320v4H0z"/>
+  <g fill="#d3d5b2">
+    <path d="M0 115h320v2H0zM0 137h320v2H0zM0 163h320v3H0z"/>
+    <path d="M58 104h3L25 180h-4zM259 104h3l37 76h-4z"/>
+    <path d="M104 111h4v3h-4zM104 120h4v4h-4zM104 130h4v4h-4zM104 146h4v5h-4zM104 171h4v5h-4z"/>
+    <path d="M212 111h4v3h-4zM212 120h4v4h-4zM212 130h4v4h-4zM212 146h4v5h-4zM212 171h4v5h-4z"/>
+  </g>
+  </g>
+  <path fill="#c9a86c" transform="translate(0 -16)" d="M251 65h3v20h25V65h3v23h-13v16h-4V88h-14z"/>
+  <path fill="#f0ce88" transform="translate(0 -16)" d="M251 65h1v21h28V65h2v23h-13v16h-2V87h-16z"/>
+  <path fill="#d8c79d" d="M15 144h4v17h-4zM302 144h4v17h-4z"/>
+  <path fill="#b87751" d="M13 139h8v6h-8zM300 139h8v6h-8z"/>
+  <g fill="#89a176"><path d="M37 149h8v2h-8zM276 151h8v2h-8zM68 170h9v2h-9zM242 172h10v2h-10z"/></g>
+</svg>
