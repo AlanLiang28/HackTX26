@@ -3,30 +3,28 @@ import assert from "node:assert/strict";
 import { groupConcepts, rankMatches, TOPIC_SAME, TOPIC_UNRELATED, topicScore } from "./classes.ts";
 import type { Pack } from "./game-routes.ts";
 
-const m = (id: string, interests: string[], theme: string | null = "sports", ready = true) => ({ id, interests, theme, ready });
-const me = m("me", ["basketball", "anime", "cooking"]);
+const m = (id: string, theme: string | null = "sports", ready = true) => ({ id, theme, ready });
+const me = m("me");
 
-// More shared interests rank first, with the shared tags listed
-let r = rankMatches(me, [m("a", ["chess"]), m("b", ["anime", "cooking"]), m("c", ["basketball", "chess"])]);
-assert.deepEqual(r.map((x) => x.m.id), ["b", "c", "a"]);
-assert.deepEqual(r[0].shared, ["anime", "cooking"]);
-assert.equal(r[0].score, 2 / 3);
+// The world is the interest: same world first, then whoever is ready; no world yet scores 0
+let r = rankMatches(me, [m("other", "fantasy"), m("waiting", "sports", false), m("new", null), m("same")]);
+assert.deepEqual(r.map((x) => x.m.id), ["same", "waiting", "other", "new"]);
+assert.equal(r[0].score, 1);
 assert.equal(r[2].score, 0);
 
-// Ties go to the same world, then to classmates who are ready
-r = rankMatches(me, [m("x", ["anime"], "fantasy"), m("y", ["anime"], "sports", false), m("z", ["anime"], "sports")]);
-assert.deepEqual(r.map((x) => x.m.id), ["z", "y", "x"]);
-
-// Free agents: topic similarity is averaged in, so a same-subject stranger beats a same-hobby one
+// Free agents: world and subject weigh the same, so a same-subject player in the other world
+// ties a same-world player studying something unrelated
 assert.equal(topicScore(0.6), 0);
 assert(Math.abs(topicScore((TOPIC_UNRELATED + TOPIC_SAME) / 2) - 0.5) < 1e-9);
 assert.equal(topicScore(0.99), 1);
-const t = (id: string, interests: string[], cosine: number | null) => ({ ...m(id, interests), topic: cosine });
-r = rankMatches(me, [t("hobby", ["anime", "cooking", "basketball"], 0.74), t("subject", ["anime"], 0.93), t("none", ["chess"], null)]);
-assert.deepEqual(r.map((x) => x.m.id), ["subject", "hobby", "none"]);
-assert.equal(r[0].score, (1 / 3 + topicScore(0.93)) / 2);
-assert.equal(r[1].topic, 0);
-assert.equal(r[2].topic, null);
+const t = (id: string, theme: string, cosine: number | null) => ({ ...m(id, theme), topic: cosine });
+r = rankMatches(me, [t("unrelated", "sports", 0.7), t("subject", "fantasy", 0.93), t("none", "fantasy", null), t("related", "sports", 0.85), t("both", "sports", 0.93)]);
+assert.deepEqual(r.map((x) => x.m.id), ["both", "related", "unrelated", "subject", "none"]);
+assert.equal(r[0].score, 1);
+assert.equal(r[2].score, 0.5);
+assert.equal(r[3].score, 0.5);
+assert.equal(r[2].topic, 0);
+assert.equal(r[4].topic, null);
 
 // Key concepts: the group's weakest tested subtopics; untested ones last; ties keep pack order
 const pack = {

@@ -11,6 +11,7 @@ import { gameRouter, onPackConcept } from "./game-routes.ts";
 import { generateText, parseJsonLoose, LlmError } from "./llm.ts";
 import { bossRouter } from "./boss.ts";
 import { classRouter } from "./classes.ts";
+import { friendRouter } from "./friends.ts";
 
 process.loadEnvFile();
 
@@ -89,10 +90,10 @@ const db = new pg.Pool({
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 // ---- Boss fight models (boss.ts) ----
-// Muse (Meta) handles voice transcription only; null without a key, so transcription falls back to Gemini.
-const muse = process.env.META_API_KEY
-  ? new OpenAI({ apiKey: process.env.META_API_KEY, baseURL: "https://api.meta.ai/v1" })
-  : null;
+// Muse (Meta) handles voice transcription only; needs META_API_KEY (or MUSE_API, same as coach.ts).
+// null without a key, so transcription falls back to Gemini.
+const museKey = process.env.META_API_KEY ?? process.env.MUSE_API;
+const muse = museKey ? new OpenAI({ apiKey: museKey, baseURL: "https://api.meta.ai/v1" }) : null;
 
 function buildPrompt(topic: string, interest: string, level: string) {
   return `You are a friendly tutor who explains things using analogies from the student's interests.
@@ -169,6 +170,7 @@ app.get("/api/stats", async (_req, res) => {
 // ---- Part 3: boss fight (must stay above the static site + catch-all) ----
 app.use(bossRouter({ db, muse }));
 app.use(classRouter({ db, ai })); // classes, free agents + matching; groups play the boss above (docs/classes.md)
+app.use(friendRouter({ db })); // friends + chat between players
 
 // ---- Serve the built React site (after `npm run build`) ----
 app.use(express.static(path.resolve("dist")));

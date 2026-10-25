@@ -68,7 +68,13 @@ function TeacherDashboard({
             <span className="subject-label">CLASS CODE</span>
             <strong className="class-code">{saved.code}</strong>
           </div>
-          <CopyButton text={saved.code} label="Copy code" />
+          <div className="code-actions">
+            <CopyButton text={saved.code} label="Copy code" />
+            <CopyButton
+              text={`${location.origin}/${saved.code}`}
+              label="Copy link"
+            />
+          </div>
         </div>
         {freshKey && (
           <div className="teacher-key-notice">
@@ -160,7 +166,13 @@ function TeacherDashboard({
                   <article className="dashboard-row" key={person.id}>
                     <div>
                       <h3>{person.name}</h3>
-                      <p>{person.interests.join(" · ")}</p>
+                      <p>
+                        {person.theme === "sports"
+                          ? "Sports"
+                          : person.theme === "fantasy"
+                            ? "Fantasy"
+                            : "No world yet"}
+                      </p>
                     </div>
                     <div className="row-metric">
                       <strong>

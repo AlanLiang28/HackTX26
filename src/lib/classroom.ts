@@ -1,31 +1,15 @@
 import type { Theme } from "./study";
 import { parseAdaptiveGame } from "./adaptive";
 
-export const INTERESTS = [
-  "Football",
-  "Basketball",
-  "Soccer",
-  "Gaming",
-  "Anime",
-  "Music",
-  "Movies",
-  "Art",
-  "Cooking",
-  "Chess",
-  "Reading",
-  "Science",
-  "Technology",
-  "Outdoors",
-  "Dance",
-  "Travel",
-] as const;
-export type Profile = { name: string; interests: string[] };
+// Players are matched by the world they pick (their Theme), so a profile is just a name.
+export type Profile = { name: string };
 export type ClassInfo = { code: string; name: string; teacherName: string };
 export type MemberContext = Profile & {
   memberId: string;
   kind: "class" | "free";
   theme: Theme;
   class?: ClassInfo;
+  token?: string; // friends + chat key; players saved before friends existed have none
 };
 export type SavedClass = { code: string; name: string; teacherToken: string };
 export type Group = {
@@ -33,13 +17,12 @@ export type Group = {
   playerId: string;
   theme: Theme;
   bossStarted: boolean;
-  members: { id: string; name: string; interests: string[] }[];
+  members: { id: string; name: string; theme: Theme | null }[];
 };
 export type MemberView = {
   member: {
     id: string;
     name: string;
-    interests: string[];
     theme: Theme | null;
     ready: boolean;
   };
@@ -47,21 +30,25 @@ export type MemberView = {
   matches: {
     memberId: string;
     name: string;
-    interests: string[];
-    shared: string[];
+    theme: Theme | null;
     topic: number | null;
     score: number;
     ready: boolean;
     groupSize: number;
   }[];
 };
+export type Friend = {
+  id: string;
+  name: string;
+  status: "friends" | "incoming" | "outgoing";
+};
+export type ChatMessage = { id: string; mine: boolean; body: string; at: string };
 export type Dashboard = ClassInfo & {
   level: string;
   worldsReady: Theme[];
   members: {
     id: string;
     name: string;
-    interests: string[];
     theme: Theme | null;
     ready: boolean;
     groupCode: string | null;
@@ -111,10 +98,15 @@ export async function api<T>(
     throw new ApiError("The server returned an incomplete response.");
   return data as T;
 }
-const post = <T>(path: string, body: unknown, signal?: AbortSignal) =>
+const post = <T>(
+  path: string,
+  body: unknown,
+  signal?: AbortSignal,
+  headers: Record<string, string> = {},
+) =>
   api<T>(path, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...headers },
     body: JSON.stringify(body),
     signal,
   });
@@ -129,14 +121,18 @@ export async function joinClass(
   theme: Theme,
   signal?: AbortSignal,
 ): Promise<MemberContext> {
-  const data = await post<{ memberId: string; class: ClassInfo }>(
+  const { memberToken, ...data } = await post<{
+    memberId: string;
+    memberToken: string;
+    class: ClassInfo;
+  }>(
     `/api/classes/${encodeURIComponent(code.trim().toUpperCase())}/join`,
     profile,
     signal,
   );
   if (typeof data.memberId !== "string" || !data.class?.code)
     throw new ApiError("The class response was incomplete.");
-  return { ...profile, ...data, kind: "class", theme };
+  return { ...profile, ...data, token: memberToken, kind: "class", theme };
 }
 export async function startFreeAgent(
   profile: Profile,
@@ -144,7 +140,7 @@ export async function startFreeAgent(
   theme: Theme,
   signal?: AbortSignal,
 ) {
-  const data = await post<{ memberId: string }>(
+  const data = await post<{ memberId: string; memberToken: string }>(
     "/api/free-agents",
     { ...profile, material, theme },
     signal,
@@ -156,6 +152,7 @@ export async function startFreeAgent(
     member: {
       ...profile,
       memberId: data.memberId,
+      token: data.memberToken,
       kind: "free" as const,
       theme,
     },
@@ -204,6 +201,58 @@ export async function pickPartner(
     ),
   );
 }
+const friendsPath = (member: MemberContext, friendId = "") =>
+  `/api/members/${encodeURIComponent(member.memberId)}/friends${friendId ? `/${encodeURIComponent(friendId)}/messages` : ""}`;
+const asMember = (member: MemberContext) => ({
+  "X-Member-Token": member.token ?? "",
+});
+function validateList<T>(data: Record<string, unknown>, key: string) {
+  if (!Array.isArray(data[key]))
+    throw new ApiError(`The ${key} response was incomplete.`);
+  return data[key] as T[];
+}
+export async function getFriends(member: MemberContext, signal?: AbortSignal) {
+  return validateList<Friend>(
+    await api(friendsPath(member), { headers: asMember(member), signal }),
+    "friends",
+  );
+}
+// Sends a friend request, or accepts theirs.
+export async function addFriend(
+  member: MemberContext,
+  friendId: string,
+  signal?: AbortSignal,
+) {
+  return validateList<Friend>(
+    await post(friendsPath(member), { friendId }, signal, asMember(member)),
+    "friends",
+  );
+}
+// Newest first.
+export async function getChat(
+  member: MemberContext,
+  friendId: string,
+  signal?: AbortSignal,
+) {
+  return validateList<ChatMessage>(
+    await api(friendsPath(member, friendId), {
+      headers: asMember(member),
+      signal,
+    }),
+    "messages",
+  );
+}
+export async function sendChat(
+  member: MemberContext,
+  friendId: string,
+  body: string,
+  signal?: AbortSignal,
+) {
+  return validateList<ChatMessage>(
+    await post(friendsPath(member, friendId), { body }, signal, asMember(member)),
+    "messages",
+  );
+}
 export async function createClass(
   input: { name: string; teacherName: string; material: string; level: string },
   signal?: AbortSignal,
@@ -249,7 +298,6 @@ export function readMember(): MemberContext | null {
   return saved &&
     typeof saved.memberId === "string" &&
     typeof saved.name === "string" &&
-    Array.isArray(saved.interests) &&
     (saved.kind === "free" || (saved.kind === "class" && saved.class?.code)) &&
     ["sports", "fantasy"].includes(saved.theme)
     ? saved

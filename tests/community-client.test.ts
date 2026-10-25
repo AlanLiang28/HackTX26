@@ -1,20 +1,24 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  addFriend,
   ApiError,
   createClass,
+  getChat,
   getDashboard,
+  getFriends,
   getMember,
   joinClass,
   pickPartner,
   playMember,
+  sendChat,
   startFreeAgent,
 } from "../src/lib/classroom.ts";
 import { getBoss, startBoss, submitBoss } from "../src/lib/party.ts";
 import { saveQuest } from "../src/lib/study.ts";
 import { fetchConceptVoice } from "../src/lib/voice.ts";
 
-const profile = { name: "Ada", interests: ["gaming", "anime"] };
+const profile = { name: "Ada" };
 const memberView = {
   member: { id: "member", ...profile, theme: "fantasy", ready: true },
   group: null,
@@ -134,7 +138,7 @@ test("community clients follow the class, matching, teacher and boss contracts",
     },
   );
   await t.test(
-    "free-agent signup includes notes, preset world and exact interest tags",
+    "free-agent signup includes notes and the preset world",
     async () => {
       reply = { memberId: "member", ...game };
       const result = await startFreeAgent(profile, "My cell notes", "fantasy");
@@ -223,6 +227,36 @@ test("community clients follow the class, matching, teacher and boss contracts",
       "test-private-key",
     );
     assert.equal(last().options.body, undefined);
+  });
+  await t.test("friends and chat carry the member token", async () => {
+    reply = {
+      memberId: "member",
+      memberToken: "secret",
+      class: { code: "BIO101", name: "Biology", teacherName: "Oak" },
+    };
+    const member = await joinClass("BIO101", profile, "sports");
+    assert.equal(member.token, "secret");
+    const token = () =>
+      new Headers(last().options.headers).get("X-Member-Token");
+    reply = { friends: [{ id: "peer", name: "Linus", status: "incoming" }] };
+    assert.equal((await getFriends(member))[0].status, "incoming");
+    assert.equal(last().path, "/api/members/member/friends");
+    assert.equal(token(), "secret");
+    await addFriend(member, "peer");
+    assert.equal(last().options.method, "POST");
+    assert.deepEqual(JSON.parse(String(last().options.body)), {
+      friendId: "peer",
+    });
+    assert.equal(token(), "secret");
+    reply = { messages: [] };
+    await getChat(member, "peer");
+    assert.equal(last().path, "/api/members/member/friends/peer/messages");
+    assert.equal(token(), "secret");
+    await sendChat(member, "peer", "hi");
+    assert.deepEqual(JSON.parse(String(last().options.body)), { body: "hi" });
+    assert.equal(token(), "secret");
+    reply = {};
+    await assert.rejects(() => getFriends(member), ApiError);
   });
   await t.test(
     "boss polling and start preserve server turn ownership",

@@ -4,14 +4,51 @@
     {
       "name": "api",
       "runtimeExecutable": "env",
-      "runtimeArgs": ["-u", "GOOGLE_GENAI_USE_VERTEXAI", "-u", "GOOGLE_CLOUD_PROJECT", "-u", "GOOGLE_CLOUD_LOCATION", "npx", "tsx", "watch", "server.ts"],
+      "runtimeArgs": [
+        "-u",
+        "GOOGLE_GENAI_USE_VERTEXAI",
+        "-u",
+        "GOOGLE_CLOUD_PROJECT",
+        "-u",
+        "GOOGLE_CLOUD_LOCATION",
+        "npx",
+        "tsx",
+        "watch",
+        "server.ts"
+      ],
       "port": 3001
     },
     {
       "name": "web",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
       "port": 5173
+    },
+    {
+      "name": "preview-api",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "--import",
+        "tsx",
+        "tests/fixtures/community-preview.ts"
+      ],
+      "port": 3101
+    },
+    {
+      "name": "preview-web",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "STUDYRAID_API_TARGET=http://127.0.0.1:3101",
+        "npx",
+        "vite",
+        "--port",
+        "5174",
+        "--strictPort"
+      ],
+      "port": 5174
     }
   ]
 }

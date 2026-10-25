@@ -1,13 +1,13 @@
 # Classes, free agents, and matching (backend contract)
 
-Backend for the class structure and for free agents (players without a class, matched on interests and topic; see [Free agents](#free-agents)). The frontend builds on these endpoints. Code: `classes.ts`. Tables: `setup-db.ts`.
+Backend for the class structure and for free agents (players without a class, matched on world and topic; see [Free agents](#free-agents)). The frontend builds on these endpoints. Code: `classes.ts`. Tables: `setup-db.ts`.
 
 ## Flow
 
 1. **Teacher creates a class** with the study material. They get a 6-character class code to share and a private `teacherToken` for the dashboard. The server immediately builds the class's two game packs, one for Sports and one for Fantasy, in the background.
-2. **Students join** with the code, their name, and their interests.
+2. **Students join** with the code and their name. Their world (Sports or Fantasy) is their interest for matching.
 3. **Phase 1 is solo.** Each student plays the existing adaptive game (lessons and six encounters) in the world they choose. Every answer is logged to Tiger Data. Reaching the boss (`state.phase === "boss_ready"`) marks the student **ready**.
-4. **Matching.** Each student gets classmates ranked by shared interests and picks one to team up with. A pick either starts a new group or joins the classmate's group. Groups hold 2 to 4 players, and both students must be ready.
+4. **Matching.** Each student gets classmates ranked by world, with classmates in the same world first, and picks one to team up with. A pick either starts a new group or joins the classmate's group. Groups hold 2 to 4 players, and both students must be ready.
 5. **Game phase together.** A group is a normal boss session, so the group plays the existing multiplayer boss fight (`docs/part3-boss-fight.md`) using its `group.code` and each member's `group.playerId`. The boss's key concepts are the **group's two weakest subtopics** from phase 1.
 
 The whole class shares one pack per world, so every student gets the same subtopics, and a class costs at most two model calls, however many students it has.
@@ -35,7 +35,7 @@ Send the header `X-Teacher-Token: <teacherToken>`. A wrong or missing token retu
 {
   "code": "A1B2C3", "name": "Bio 101", "teacherName": "Dr. Lee", "level": "intro college",
   "worldsReady": ["sports", "fantasy"],          // packs built; students can start phase 1 instantly
-  "members": [{ "id": "…", "name": "Ada", "interests": ["anime"], "theme": "fantasy",
+  "members": [{ "id": "…", "name": "Ada", "theme": "fantasy",
                 "ready": true, "groupCode": "9F3E1A" | null, "attempts": 6, "accuracy": 0.83 | null }],
   "groups": [{ "code": "9F3E1A", "theme": "fantasy", "boss": "not_started" | "active" | "defeated",
                "members": ["Ada", "Linus"] }],
@@ -47,12 +47,12 @@ Send the header `X-Teacher-Token: <teacherToken>`. A wrong or missing token retu
 
 ```jsonc
 // request
-{ "name": "Ada", "interests": ["Basketball", "anime", "cooking"] }
+{ "name": "Ada" }
 // 200
 { "memberId": "…", "class": { "code": "A1B2C3", "name": "Bio 101", "teacherName": "Dr. Lee" } }
 ```
 
-Store `memberId`. It identifies the student on every later call. Interests are lowercased and deduplicated, with up to 10 tags of up to 40 characters each. **Matching uses exact tag overlap, so offer a fixed list of interest chips** rather than free text. Errors: `404 class_not_found`, `400 missing_name | missing_interests`.
+Store `memberId`. It identifies the student on every later call. There's no interest picker: the world they choose when they play (`/play`) is what matching uses. Errors: `404 class_not_found`, `400 missing_name`.
 
 ### `POST /api/classes/:code/members/:memberId/play` (phase 1)
 
@@ -68,22 +68,22 @@ This returns **exactly the same shape as `POST /api/game/start`**, so after it, 
 
 ```jsonc
 {
-  "member": { "id": "…", "name": "Ada", "interests": ["anime", "basketball"], "theme": "fantasy", "ready": true },
+  "member": { "id": "…", "name": "Ada", "theme": "fantasy", "ready": true },
   "group": null | {
     "code": "9F3E1A",              // boss session share code: /api/sessions/9F3E1A/boss
     "playerId": "…",               // this student's playerId for the boss routes
     "theme": "fantasy", "bossStarted": false,
-    "members": [{ "id": "…", "name": "Ada", "interests": ["…"] }]
+    "members": [{ "id": "…", "name": "Ada", "theme": "fantasy" }]
   },
   "matches": [                     // best first. Empty once the group is full or its boss started.
-    { "memberId": "…", "name": "Linus", "interests": ["anime", "chess"], "shared": ["anime"],
+    { "memberId": "…", "name": "Linus", "theme": "fantasy" | "sports" | null,  // null: hasn't played yet
       "topic": null,               // always null in classes; set for free agents
-      "score": 0.33, "ready": true, "groupSize": 1 }
+      "score": 1, "ready": true, "groupSize": 1 }
   ]
 }
 ```
 
-Ranking is by Jaccard overlap of interests (`score`, 0 to 1), then by the same world, then by readiness. Matches include classmates who aren't ready yet (`ready: false`). Show them disabled, as "still in phase 1". `groupSize > 1` means that picking this classmate joins their existing group.
+Ranking is by world: `score` is 1 for the same world as you, else 0, with ties going to whoever is ready. Same-world groups also keep the group's themed boss right for everyone. Matches include classmates who aren't ready yet (`ready: false`). Show them disabled, as "still in phase 1". `groupSize > 1` means that picking this classmate joins their existing group.
 
 ### `POST /api/classes/:code/groups` (match)
 
@@ -101,24 +101,24 @@ Each time a member joins, the boss's key concepts are recomputed from the whole 
 
 ## Free agents
 
-A free agent is a player who isn't in a class. They bring their own notes, play phase 1 alone, and are then recommended to other free agents who share their **interests and topic**, so they can play the game phase together. The routes and response shapes match the class routes, so the same matching screen works for both.
+A free agent is a player who isn't in a class. They bring their own notes, play phase 1 alone, and are then recommended to other free agents in the same **world** who study a similar **topic**, so they can play the game phase together. The routes and response shapes match the class routes, so the same matching screen works for both.
 
 1. `POST /api/free-agents` signs them up and starts phase 1 in one call (one model call). It's rate-limited like the other AI routes.
 
    ```jsonc
    // request
-   { "name": "Ada", "interests": ["anime", "basketball"], "theme": "sports" | "fantasy", "material": "…notes, up to 20,000 chars…" }
+   { "name": "Ada", "theme": "sports" | "fantasy", "material": "…notes, up to 20,000 chars…" }
    // 200: the same shape as POST /api/game/start, plus memberId
    { "memberId": "…", "gameId": "…", "playerId": "…", "pack": { … }, "state": { … } }
    ```
 
-   Store `memberId`, then drive the game with `/api/game/:gameId/next`, `/answer`, and `/restart`. Errors: `400 missing_name | missing_interests | missing_material | material_too_long | bad_theme`, `502 upstream_failed`.
+   Store `memberId`, then drive the game with `/api/game/:gameId/next`, `/answer`, and `/restart`. Errors: `400 missing_name | missing_material | material_too_long | bad_theme`, `502 upstream_failed`.
 
 2. `POST /api/free-agents/:memberId/play` replays phase 1 from their stored pack, with no model call. Use it after a server restart.
 3. `GET /api/free-agents/:memberId` returns the same `{ member, group, matches }` view as the class version. Poll it about every 3 seconds while matching.
 4. `POST /api/free-agents/groups` takes `{ "memberId": "<me>", "partnerId": "<match.memberId>" }` and has the same rules and errors as class groups.
 
-**Ranking:** `score = (interest overlap + topic) / 2`. `topic` (0 to 1) is how close the two players' subjects are. It compares embeddings of the players' own notes (Gemini `gemini-embedding-001`, stored in pgvector). The theme isn't part of it, so a Sports player and a Fantasy player studying the same subject still match. Measured on real notes: two people's notes on the same subject score about 0.93, the same field (data structures vs algorithms) about 0.7, related subjects (cells vs photosynthesis) about 0.4, and unrelated ones 0. If the embedding call fails at signup, that player's `topic` is `null` and they're ranked on interests only. To tune it, adjust `TOPIC_UNRELATED` and `TOPIC_SAME` in `classes.ts`.
+**Ranking:** `score = (same world + topic) / 2`, where same world is 1 or 0. `topic` (0 to 1) is how close the two players' subjects are. It compares embeddings of the players' own notes (Gemini `gemini-embedding-001`, stored in pgvector). World and subject weigh the same, so a Fantasy player with your exact subject ties a Sports player studying something unrelated. Measured on real notes: two people's notes on the same subject score about 0.93, the same field (data structures vs algorithms) about 0.7, related subjects (cells vs photosynthesis) about 0.4, and unrelated ones 0. If the embedding call fails at signup, that player's `topic` is `null` and they're ranked on world only. To tune it, adjust `TOPIC_UNRELATED` and `TOPIC_SAME` in `classes.ts`.
 
 **Whose notes the group plays:** the boss uses the pack of the player who **started the group** (the one who sent `memberId` when neither was grouped). Key concepts are still the group's weakest subtopics, from whoever answered questions on that pack. Topic matching is what makes a shared pack fair.
 
@@ -133,7 +133,7 @@ Use `group.code` and `group.playerId` with the routes in `docs/part3-boss-fight.
 | Table | What |
 |---|---|
 | `classes` | Code, teacher, material, and `packs` (both worlds' game packs, **including answer keys: never sent to clients**). |
-| `class_members` | Name, interests (`TEXT[]`), last world, `ready_at`, and their group (`session_id`, `player_id`). Free agents are rows with `class_id` null, plus their own `pack` and `topic_embedding vector(768)` (pgvector). |
+| `class_members` | Name, world (`theme`, which is also what matching uses), `ready_at`, and their group (`session_id`, `player_id`). Free agents are rows with `class_id` null, plus their own `pack` and `topic_embedding vector(768)` (pgvector). |
 | `class_answers` | **Hypertable.** One row per phase 1 answer: member, subtopic, and correct (`class_id` null for free agents). Drives the dashboard and the group's key concepts. |
 | `sessions.class_id` | New column. Class groups are `sessions` rows with it set. It's null for free-agent groups, and `content.host` names the member whose pack the group plays. |
 | `boss_attempts` | Existing hypertable. Each group's boss attempts. |
@@ -154,5 +154,4 @@ It prints a cheat sheet of personas and their ids. The ids stay the same across 
 - **Auth.** As with the boss routes, ids are trusted, and `matches` exposes classmates' `memberId`s.
 - **Invite and accept.** A pick groups both students immediately.
 - **Leaving a group.**
-- **Semantic interest matching.** Interests are exact tags. Only topics use embeddings.
 - **A shared mob fight.** Phase 1 encounters stay solo, and only the boss is played together.

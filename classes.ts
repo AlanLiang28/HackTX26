@@ -1,7 +1,7 @@
 // Classes and free agents. Spec: docs/classes.md
 // A teacher creates a class, students join, play phase 1 (the adaptive game) on their own, then match with
-// classmates who share their interests and fight the boss together. Free agents do the same without a class:
-// they bring their own notes and match with other free agents on interests AND topic (pgvector).
+// classmates who picked the same world and fight the boss together. Free agents do the same without a class:
+// they bring their own notes and match with other free agents on world AND topic (pgvector).
 // A group IS a `sessions` row plus `players` rows, so boss.ts's /api/sessions/:code/boss/* routes run it unchanged.
 import express from "express";
 import type pg from "pg";
@@ -26,25 +26,19 @@ export const TOPIC_SAME = 0.92;
 export const topicScore = (cosine: number) =>
   Math.min(1, Math.max(0, (cosine - TOPIC_UNRELATED) / (TOPIC_SAME - TOPIC_UNRELATED)));
 
-type Matchable = { id: string; interests: string[]; theme: string | null; ready: boolean; topic?: number | null };
+type Matchable = { id: string; theme: string | null; ready: boolean; topic?: number | null };
 
-// Ranked by shared interests (Jaccard). Free agents average that with topic similarity (`topic` = cosine
-// to me, null in classes, where everyone studies the same material). Ties go to the same world, then to who's ready.
-// ponytail: exact interest tags, so the UI should offer a fixed interest list.
+// The world a player picks (Sports or Fantasy) is their interest: same world scores 1, otherwise 0. That also
+// keeps a group's themed boss right for everyone. Free agents average it with topic similarity (`topic` =
+// cosine to me, null in classes, where everyone studies the same material). Ties go to who's ready.
 export function rankMatches<T extends Matchable>(me: Matchable, candidates: T[]) {
-  const mine = new Set(me.interests);
   return candidates
     .map((m) => {
-      const shared = m.interests.filter((i) => mine.has(i));
-      const union = new Set([...me.interests, ...m.interests]).size;
-      const interest = union ? shared.length / union : 0;
+      const world = Number(m.theme !== null && m.theme === me.theme);
       const topic = m.topic == null ? null : topicScore(m.topic);
-      return { m, shared, topic, score: topic == null ? interest : (interest + topic) / 2 };
+      return { m, topic, score: topic == null ? world : (world + topic) / 2 };
     })
-    .sort((a, b) =>
-      b.score - a.score ||
-      Number(b.m.theme === me.theme) - Number(a.m.theme === me.theme) ||
-      Number(b.m.ready) - Number(a.m.ready));
+    .sort((a, b) => b.score - a.score || Number(b.m.ready) - Number(a.m.ready));
 }
 
 // Boss content for a group. accuracy = the group's phase 1 accuracy per subtopic name (0-1).
@@ -73,15 +67,10 @@ type MemberRow = Matchable & {
 };
 
 const text = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
-const interestsOf = (v: unknown) =>
-  Array.isArray(v) ? [...new Set(v.map((i) => text(i, 40).toLowerCase()).filter(Boolean))].slice(0, 10) : [];
 const materialOf = (v: unknown) => (typeof v === "string" ? v.trim() : "");
 const shortCode = () => randomBytes(3).toString("hex").toUpperCase();
 type Failure = [number, string, string];
-const profileError = (name: string, interests: string[]): Failure | null =>
-  !name ? [400, "missing_name", "Add your name."]
-  : !interests.length ? [400, "missing_interests", "Pick at least one interest so we can match you."]
-  : null;
+const nameError = (name: string): Failure | null => (name ? null : [400, "missing_name", "Add your name."]);
 const materialError = (material: string): Failure | null =>
   !material ? [400, "missing_material", "Add the study material."]
   : material.length > MAX_MATERIAL ? [400, "material_too_long", "Keep the material under 20,000 characters."]
@@ -118,7 +107,7 @@ export function classRouter({ db, ai }: { db: pg.Pool; ai: GoogleGenAI }) {
   }
 
   // Embeds the player's own notes, not the pack: the model themes even subtopic names ("Thylakoid Blitz
-  // Drive"), which would match players by world instead of subject. Null on failure: interests only.
+  // Drive"), which would match players by world instead of subject. Null on failure: world only.
   async function embedTopic(material: string): Promise<string | null> {
     try {
       const r = await ai.models.embedContent({
@@ -142,7 +131,7 @@ export function classRouter({ db, ai }: { db: pg.Pool; ai: GoogleGenAI }) {
   // classId null = the free agent pool. topic = cosine similarity to the viewer (null without embeddings).
   // ponytail: loads the whole pool on every poll; filter in SQL once free agents number in the thousands.
   const roster = async (q: pg.Pool | pg.PoolClient, classId: string | null, viewerId = "") => (await q.query<MemberRow>(
-    `SELECT m.id, m.name, m.interests, m.theme, m.ready_at IS NOT NULL AS ready, m.session_id, m.player_id,
+    `SELECT m.id, m.name, m.theme, m.ready_at IS NOT NULL AS ready, m.session_id, m.player_id,
             COALESCE(m.ready_at, m.joined_at) > NOW() - INTERVAL '3 hours' AS recent,
             1 - (m.topic_embedding <=> v.topic_embedding) AS topic,
             s.share_code AS group_code, s.theme AS group_theme, s.content->>'host' AS group_host,
@@ -167,13 +156,13 @@ export function classRouter({ db, ai }: { db: pg.Pool; ai: GoogleGenAI }) {
       ? !m.session_id
       : !m.session_id || (size(m.session_id) < MAX_GROUP && !m.boss_started))) : [];
     return {
-      member: { id: me.id, name: me.name, interests: me.interests, theme: me.theme, ready: me.ready },
+      member: { id: me.id, name: me.name, theme: me.theme, ready: me.ready },
       group: me.session_id ? {
         code: me.group_code, playerId: me.player_id, theme: me.group_theme, bossStarted: me.boss_started,
-        members: group.map((m) => ({ id: m.id, name: m.name, interests: m.interests })),
+        members: group.map((m) => ({ id: m.id, name: m.name, theme: m.theme })),
       } : null,
-      matches: rankMatches(me, candidates).map(({ m, shared, topic, score }) => ({
-        memberId: m.id, name: m.name, interests: m.interests, shared,
+      matches: rankMatches(me, candidates).map(({ m, topic, score }) => ({
+        memberId: m.id, name: m.name, theme: m.theme,
         topic: topic == null ? null : Math.round(topic * 100) / 100,
         score: Math.round(score * 100) / 100, ready: m.ready, groupSize: size(m.session_id) || 1,
       })),
@@ -297,7 +286,7 @@ export function classRouter({ db, ai }: { db: pg.Pool; ai: GoogleGenAI }) {
       members: members.map((m) => {
         const s = perMember.find((p) => p.key === m.id);
         return {
-          id: m.id, name: m.name, interests: m.interests, theme: m.theme, ready: m.ready, groupCode: m.group_code,
+          id: m.id, name: m.name, theme: m.theme, ready: m.ready, groupCode: m.group_code,
           attempts: s?.attempts ?? 0, accuracy: s?.accuracy ?? null,
         };
       }),
@@ -313,13 +302,11 @@ export function classRouter({ db, ai }: { db: pg.Pool; ai: GoogleGenAI }) {
     const cls = await loadClass(req.params.code);
     if (!cls) return fail(res, 404, "class_not_found", NO_CLASS);
     const name = text(req.body?.name, 40);
-    const interests = interestsOf(req.body?.interests);
-    const bad = profileError(name, interests);
+    const bad = nameError(name);
     if (bad) return fail(res, ...bad);
     const { rows: [m] } = await db.query(
-      "INSERT INTO class_members (class_id, name, interests) VALUES ($1, $2, $3) RETURNING id",
-      [cls.id, name, interests]);
-    res.json({ memberId: m.id, class: { code: cls.code, name: cls.name, teacherName: cls.teacher_name } });
+      "INSERT INTO class_members (class_id, name) VALUES ($1, $2) RETURNING id, token", [cls.id, name]);
+    res.json({ memberId: m.id, memberToken: m.token, class: { code: cls.code, name: cls.name, teacherName: cls.teacher_name } });
   });
 
   // Phase 1: same response as POST /api/game/start; then use /api/game/:gameId/next|answer|restart as usual.
@@ -361,10 +348,9 @@ export function classRouter({ db, ai }: { db: pg.Pool; ai: GoogleGenAI }) {
   // Sign up and start phase 1 in one call: same response as POST /api/game/start, plus memberId.
   router.post("/api/free-agents", async (req, res) => {
     const name = text(req.body?.name, 40);
-    const interests = interestsOf(req.body?.interests);
     const material = materialOf(req.body?.material);
     const theme = req.body?.theme as Theme;
-    const bad = profileError(name, interests) ?? materialError(material);
+    const bad = nameError(name) ?? materialError(material);
     if (bad) return fail(res, ...bad);
     if (!THEMES.includes(theme)) return fail(res, 400, "bad_theme", "Pick sports or fantasy.");
     let pack: Pack;
@@ -375,9 +361,9 @@ export function classRouter({ db, ai }: { db: pg.Pool; ai: GoogleGenAI }) {
       return fail(res, 502, "upstream_failed", e instanceof LlmError ? e.message : "Couldn't build the game. Try again.");
     }
     const { rows: [m] } = await db.query(
-      "INSERT INTO class_members (name, interests, theme, pack, topic_embedding) VALUES ($1, $2, $3, $4, $5) RETURNING id",
-      [name, interests, theme, pack, await embedTopic(material)]);
-    res.json({ memberId: m.id, ...createGame(pack, name, logAnswers(null, m.id)) });
+      "INSERT INTO class_members (name, theme, pack, topic_embedding) VALUES ($1, $2, $3, $4) RETURNING id, token",
+      [name, theme, pack, await embedTopic(material)]);
+    res.json({ memberId: m.id, memberToken: m.token, ...createGame(pack, name, logAnswers(null, m.id)) });
   });
 
   // Replay phase 1 from the stored pack (e.g. after a server restart), with no model call.

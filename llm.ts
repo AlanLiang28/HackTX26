@@ -51,7 +51,7 @@ export async function withGeminiFallback<T>(call: (ai: GoogleGenAI) => Promise<T
   }
 }
 
-function messageForError(status: number, detail: string): string {
+export function messageForError(status: number, detail: string): string {
   if (status === 401 || status === 403) return "Gemini rejected the API key. Check GEMINI_API_KEY in .env.";
   if (status === 404) return `Gemini doesn't recognize the model "${modelName()}". Set GEMINI_MODEL in .env.`;
   if (status === 429 && /PerDay/i.test(detail))
