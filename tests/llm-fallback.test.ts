@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { generateText, LlmError } from "../llm.ts";
+import { generateJson, generateText, LlmError, pdfText, streamText } from "../llm.ts";
 
 const quotaError = () =>
   new Response(
@@ -32,8 +32,10 @@ test("Gemini backup API key", async (t) => {
     GEMINI_MODEL: "main-model",
     GEMINI_FALLBACK_MODEL: "lite-model",
   };
-  const previous = Object.fromEntries(Object.keys(settings).map((k) => [k, process.env[k]]));
+  const MUSE_KEYS = ["META_API_KEY", "MUSE_API"];
+  const previous = Object.fromEntries([...Object.keys(settings), ...MUSE_KEYS].map((k) => [k, process.env[k]]));
   Object.assign(process.env, settings);
+  for (const k of MUSE_KEYS) delete process.env[k]; // Gemini-only until the Muse tests at the end
   t.after(() => {
     for (const [name, value] of Object.entries(previous)) {
       if (value === undefined) delete process.env[name];
@@ -95,6 +97,78 @@ test("Gemini backup API key", async (t) => {
       return true;
     });
     assert.equal(fetch.mock.callCount(), 2);
+    fetch.mock.restore();
+  });
+  // ---------- Muse first ----------
+  const isMuse = (url: string | URL | Request) => String(url).startsWith("https://api.meta.ai/");
+  const museAnswer = (content: string) =>
+    new Response(
+      JSON.stringify({ id: "c1", object: "chat.completion", created: 0, model: "muse-spark-1.3",
+        choices: [{ index: 0, message: { role: "assistant", content }, finish_reason: "stop" }] }),
+      { headers: { "Content-Type": "application/json" } },
+    );
+
+  await t.test("asks Muse first when there's a Muse key, and Gemini isn't called", async () => {
+    process.env.MUSE_API = "muse-key";
+    const urls: string[] = [];
+    const fetch = t.mock.method(globalThis, "fetch", async (url: string | URL | Request) => {
+      urls.push(String(url));
+      return isMuse(url) ? museAnswer("from muse") : answer("from gemini");
+    });
+    assert.equal(await generateText("hi"), "from muse");
+    assert.deepEqual(urls, ["https://api.meta.ai/v1/chat/completions"]);
+    fetch.mock.restore();
+  });
+
+  await t.test("falls back to Gemini when Muse fails", async () => {
+    const fetch = t.mock.method(globalThis, "fetch", async (url: string | URL | Request) =>
+      isMuse(url)
+        ? new Response(JSON.stringify({ error: { message: "bad request" } }), { status: 400, headers: { "Content-Type": "application/json" } })
+        : answer("from gemini"),
+    );
+    assert.equal(await generateText("hi"), "from gemini");
+    fetch.mock.restore();
+  });
+
+  await t.test("streams from Muse and reports progress as text arrives", async () => {
+    const pieces = ['{"title":', '"Cells"}'];
+    const fetch = t.mock.method(globalThis, "fetch", async () =>
+      new Response(
+        pieces
+          .map((content) => `data: ${JSON.stringify({ id: "c1", object: "chat.completion.chunk", created: 0, model: "m", choices: [{ index: 0, delta: { content }, finish_reason: null }] })}\n\n`)
+          .join("") + "data: [DONE]\n\n",
+        { headers: { "Content-Type": "text/event-stream" } },
+      ),
+    );
+    const progress: string[] = [];
+    assert.equal(await streamText("hi", (soFar) => progress.push(soFar)), '{"title":"Cells"}');
+    assert.deepEqual(progress, ['{"title":', '{"title":"Cells"}']);
+    fetch.mock.restore();
+  });
+
+  await t.test("grading asks Muse for strict JSON that follows the schema", async () => {
+    let body: { response_format?: { type: string; json_schema: { name: string; strict: boolean; schema: object } } } = {};
+    const schema = { type: "object", properties: { score: { type: "integer" } }, required: ["score"], additionalProperties: false };
+    const fetch = t.mock.method(globalThis, "fetch", async (_url: string | URL | Request, init?: RequestInit) => {
+      body = JSON.parse(String(init?.body));
+      return museAnswer('{"score":3}');
+    });
+    assert.equal(await generateJson("grade it", "rubric", schema), '{"score":3}');
+    assert.deepEqual(body.response_format, { type: "json_schema", json_schema: { name: "rubric", strict: true, schema } });
+    fetch.mock.restore();
+  });
+  await t.test("reads a PDF with Muse, sending the file itself, without calling Gemini", async () => {
+    const urls: string[] = [];
+    let content: { type: string; file?: { filename: string; file_data: string } }[] = [];
+    const fetch = t.mock.method(globalThis, "fetch", async (url: string | URL | Request, init?: RequestInit) => {
+      urls.push(String(url));
+      content = JSON.parse(String(init?.body)).messages[0].content;
+      return museAnswer("Mitochondria make ATP.");
+    });
+    assert.equal(await pdfText(Buffer.from("%PDF-1.4 fake")), "Mitochondria make ATP.");
+    assert.deepEqual(urls, ["https://api.meta.ai/v1/chat/completions"]);
+    assert.equal(content[0].type, "file");
+    assert.equal(content[0].file?.file_data, `data:application/pdf;base64,${Buffer.from("%PDF-1.4 fake").toString("base64")}`);
     fetch.mock.restore();
   });
 });

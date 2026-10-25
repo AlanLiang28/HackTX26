@@ -157,7 +157,7 @@ app.post("/api/explain", async (req, res) => {
   }
 });
 
-// PDF upload: Gemini reads the PDF and sends back its text, which the browser then uses like a TXT upload.
+// PDF upload: Muse (or Gemini as backup) reads the PDF and sends back its text, which the browser then uses like a TXT upload.
 app.post("/api/pdf-text", express.raw({ type: "application/pdf", limit: "10mb" }), async (req, res) => {
   if (!Buffer.isBuffer(req.body) || !req.body.length) {
     res.status(400).json({ error: "Choose a PDF file." });

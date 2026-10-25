@@ -1,10 +1,9 @@
-// AI voice explanation: Muse writes a script in character, Gemini TTS performs it.
-// Muse needs META_API_KEY (or MUSE_API); without one, Gemini writes the script instead.
+// AI voice explanation: Muse writes a script in character (Gemini if Muse fails; see llm.ts), Gemini TTS performs it.
 // Add to server.ts:   import { registerCoachRoute } from "./coach";
 //                     registerCoachRoute(app);      (after app.use(express.json(...)))
 import type { Express } from "express";
 import { GoogleGenAI } from "@google/genai";
-import OpenAI from "openai";
+import { generateText } from "./llm.ts";
 
 // Who's talking for each theme. voice = a Gemini prebuilt voice name.
 const PERSONAS: Array<{ match: string[]; persona: string; voice: string; style: string }> = [
@@ -84,22 +83,8 @@ Rules:
 - You may use the tag <short pause> two or three times for dramatic effect.
 - End with a short, punchy line that sums up the key idea.`;
 
-  const museKey = process.env.META_API_KEY ?? process.env.MUSE_API;
-  if (museKey) {
-    const muse = new OpenAI({ baseURL: "https://api.meta.ai/v1", apiKey: museKey });
-    const reply = await muse.chat.completions.create({
-      model: process.env.MUSE_MODEL ?? "muse-spark-1.1",
-      messages: [{ role: "user", content: prompt }],
-    });
-    return reply.choices[0]?.message?.content?.trim() ?? "";
-  }
-
-  const gemini = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-  const reply = await gemini.models.generateContent({
-    model: process.env.GEMINI_MODEL ?? "gemini-3.5-flash",
-    contents: prompt,
-  });
-  return reply.text?.trim() ?? "";
+  // Muse first, with Gemini (and its backup key and model) if Muse fails.
+  return (await generateText(prompt)).trim();
 }
 
 // ---------- Step 2: Gemini performs it ----------
