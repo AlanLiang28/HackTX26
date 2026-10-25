@@ -104,6 +104,17 @@ export function generateText(prompt: string): Promise<string> {
   return textCall(async (ai, model) => (await ai.models.generateContent({ model, contents: prompt, config })).text);
 }
 
+// Reads a PDF's text, so uploaded PDFs become plain study material like TXT and Markdown files.
+export function pdfText(pdf: Buffer): Promise<string> {
+  return textCall(async (ai, model) => (await ai.models.generateContent({
+    model, config,
+    contents: [
+      { inlineData: { mimeType: "application/pdf", data: pdf.toString("base64") } },
+      { text: "Return the text of this PDF as Markdown. Keep headings, lists and tables; skip page numbers, headers and footers. Return only the text." },
+    ],
+  })).text);
+}
+
 // Like generateText, but calls onProgress with the text so far as it streams in, so callers can act on
 // the start of a long answer early. After a retry (backup key, overload) the text starts over.
 export function streamText(prompt: string, onProgress: (textSoFar: string) => void): Promise<string> {

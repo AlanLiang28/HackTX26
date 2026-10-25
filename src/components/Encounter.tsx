@@ -25,6 +25,7 @@ export function Encounter({
   onGrade,
   focus,
   localVoice = false,
+  muted = false,
 }: {
   theme: Theme;
   session: StudySession;
@@ -41,6 +42,7 @@ export function Encounter({
   onGrade?: (answer: number) => Promise<GradedAnswer>;
   focus?: string;
   localVoice?: boolean;
+  muted?: boolean;
 }) {
   const boss = index === session.content.quiz.length;
   const character = getCharacter(theme, index, boss);
@@ -209,6 +211,7 @@ export function Encounter({
           interest={interestFor(theme)}
           speaker={character.name}
           localOnly={localVoice}
+          muted={muted}
         />
       )}
       <div className="encounter-content">

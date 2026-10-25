@@ -561,7 +561,7 @@ export function TeacherDesk({ onBusy }: { onBusy: (busy: boolean) => void }) {
                   className="visually-hidden"
                   tabIndex={-1}
                   type="file"
-                  accept=".txt,.md,text/plain,text/markdown"
+                  accept=".pdf,.txt,.md,application/pdf,text/plain,text/markdown"
                   disabled={busy || reading}
                   onChange={(event) => {
                     void loadFile(event.target.files?.[0]);

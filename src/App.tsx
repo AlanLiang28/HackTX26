@@ -86,6 +86,7 @@ export default function App() {
   const [group, setGroup] = useState<Group | null>(null);
   const [teamResult, setTeamResult] = useState<TeamResult | null>(null);
   const [theme, setTheme] = useState<Theme>("fantasy");
+  const [worldPreview, setWorldPreview] = useState<"space" | "cooking" | null>(null);
   const [notes, setNotes] = useState("");
   const [filename, setFilename] = useState("");
   const [loading, setLoading] = useState(false);
@@ -102,7 +103,7 @@ export default function App() {
   const [gameError, setGameError] = useState("");
   const [hp, setHp] = useState(20);
   const [overlay, setOverlay] = useState<Overlay>(null);
-  const [sound, setSound] = useState(false);
+  const [sound, setSound] = useState(() => recall<boolean>("sound", true) !== false);
   const [log, setLog] = useState<QuestRecord[]>(readQuestLog);
   const audio = useRef<AudioContext | null>(null);
   const request = useRef<AbortController | null>(null);
@@ -497,7 +498,7 @@ export default function App() {
   }
 
   return (
-    <div className={`app theme-${theme} ${inCombat ? "in-combat" : ""}`}>
+    <div className={`app theme-${screen === "world" && worldPreview ? worldPreview : theme} ${inCombat ? "in-combat" : ""}`}>
       <div className="world-background" aria-hidden="true" />
       <div className="world-wash" aria-hidden="true" />
       <div className="ambient-pixels" aria-hidden="true">
@@ -559,11 +560,17 @@ export default function App() {
           )}
           <button
             className="icon-button"
-            aria-label={sound ? "Mute game sounds" : "Enable game sounds"}
+            aria-label={sound ? "Mute all audio" : "Unmute all audio"}
             aria-pressed={sound}
             onClick={() => {
-              setSound(!sound);
-              chime(!sound);
+              const enabled = !sound;
+              setSound(enabled);
+              remember("sound", enabled);
+              if (enabled) chime(true);
+              else {
+                window.speechSynthesis?.cancel();
+                void audio.current?.suspend();
+              }
             }}
           >
             <PixelIcon name={sound ? "sound" : "mute"} size={19} />
@@ -656,6 +663,7 @@ export default function App() {
             key={group.code}
             group={group}
             theme={theme}
+            muted={!sound}
             onBusy={setGameBusy}
             onNotes={session ? () => setOverlay("notes") : undefined}
             onBack={() => setScreen("matching")}
@@ -665,6 +673,8 @@ export default function App() {
         {screen === "world" && (
           <WorldScreen
             theme={theme}
+            preview={worldPreview}
+            onPreview={setWorldPreview}
             onChoose={(next) => {
               setTheme(next);
               chime();
@@ -723,6 +733,7 @@ export default function App() {
             key={`${theme}-${encounter}`}
             theme={theme}
             localVoice={demo}
+            muted={!sound}
             session={session}
             index={encounter}
             hp={hp}
@@ -966,6 +977,7 @@ export default function App() {
           )}
           <p className="book-overview">{session.content.overview}</p>
           <CoachVoice
+            muted={!sound}
             topic={
               session.content.title ||
               session.content.mappings.map((item) => item.concept).join(", ")

@@ -26,6 +26,14 @@
 .theme-sports .world-background {
   background-image: url("/images/sports-world.png");
 }
+.theme-space .world-background {
+  background-image: url("/images/space-world.png");
+  background-position: center;
+}
+.theme-cooking .world-background {
+  background-image: url("/images/cooking-world.png");
+  background-position: center;
+}
 .world-wash {
   z-index: -2;
   background: linear-gradient(
@@ -300,9 +308,9 @@
   border-bottom: 1px solid #d1d7bf;
 }
 .world-picker {
-  width: min(100%, 760px);
+  width: min(100%, 1120px);
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 20px;
 }
 .world-card {
@@ -320,7 +328,7 @@
     transform 0.15s,
     border-color 0.15s;
 }
-.world-card:hover {
+.world-card:hover:not(:disabled) {
   transform: translateY(-3px);
   border-color: #789466;
 }
@@ -349,6 +357,18 @@
     linear-gradient(180deg, transparent 55%, #1d392b77),
     url("/images/fantasy-world.png");
   background-position: 65% 55%;
+}
+.art-space {
+  background-image:
+    linear-gradient(180deg, transparent 55%, #16273f88),
+    url("/images/space-world.png");
+  background-position: center;
+}
+.art-cooking {
+  background-image:
+    linear-gradient(180deg, transparent 55%, #493b2777),
+    url("/images/cooking-world.png");
+  background-position: center;
 }
 .world-card-location {
   position: absolute;
@@ -1856,6 +1876,10 @@
   }
 }
 @media (max-width: 1050px) {
+  .world-picker {
+    width: min(100%, 760px);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
   .site-header {
     width: calc(100% - 44px);
     gap: 16px;

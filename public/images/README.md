@@ -1,8 +1,24 @@
 # fairytails artwork
 
-Original background assets generated with the built-in ImageGen tool for this project. All final assets are saved in this directory. The two world cards reuse these images.
+Original background assets generated with the built-in ImageGen tool for this project. All final assets are saved in this directory. World cards reuse these images; Space and Cooking are selectable previews with astronaut and chef sprites from `src/components/PixelSprite.tsx`. Their Enter buttons stay on the world picker.
 
 Battle backgrounds are original hand-authored SVG pixel art, using a 320 × 180 grid and crisp edges. `fantasy-battle.svg` is a sunlit forest clearing, and `sports-battle.svg` is a football field at sunset. Their `-portrait.svg` variants use a 180 × 320 grid to keep trees, stands, and floodlights visible on narrow screens. They fill the battle viewport while the dialogue stays in solid panels. These assets require no image service or external downloads.
+
+## Space preview background
+
+File: `space-world.png`
+
+Generated with the built-in ImageGen tool. Final prompt:
+
+Use case: stylized-concept. Asset type: wide 16:9 world selection card background for fairytails, a cozy 16-bit pixel-art study adventure. Create a polished pixel-art SPACE world: a serene lunar outpost with a small cream and sage-green observatory dome and warm lit windows, low rocky moon hills, a little parked space shuttle, dark dusty indigo sky with scattered square stars and a large ringed pale-gold planet in the upper right. Authentic carefully placed square pixels, distinct pixel clusters, retro adventure game scenery, limited muted color palette of deep navy, dusty blue, sage, buttercream and pale gold. Inviting, curious and peaceful. Clear simple composition readable at thumbnail size. Ground and outpost in lower half, open starry sky above. Landscape edge-to-edge illustration only. No people, no lettering, no text, no UI, no borders, no watermarks. Match the tasteful low contrast warm retro pixel-art style of a cozy fantasy valley game.
+
+## Cooking preview background
+
+File: `cooking-world.png`
+
+Generated with the built-in ImageGen tool. Final prompt:
+
+Use case: stylized-concept. Asset type: wide 16:9 world selection card background for fairytails, a cozy 16-bit pixel-art study adventure. Create a polished pixel-art COOKING world: a charming sunlit cottage kitchen with a big cream oven, copper pots hanging above a wooden counter, little bunches of herbs and jars on shelves, fresh vegetables and a loaf of bread on a central prep table, sage-green cabinets and a window looking onto a leafy garden. Authentic carefully placed square pixels, distinct pixel clusters, retro adventure game scenery, limited muted palette of sage green, buttercream, honey brown, soft terracotta and dusty blue. Inviting, cozy and whimsical. Clear simple composition readable at thumbnail size. Wide room interior with warm window light and detailed objects toward the sides. Landscape edge-to-edge illustration only. No people, no lettering, no text, no UI, no borders, no watermarks. Match the tasteful low contrast warm retro pixel-art style of a cozy fantasy valley game.
 
 ## Fantasy background
 

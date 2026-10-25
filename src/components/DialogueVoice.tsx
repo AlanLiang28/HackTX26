@@ -11,12 +11,15 @@ export function DialogueVoice({
   interest,
   speaker,
   localOnly = false,
+  muted = false,
 }: {
   lines: string[];
   line: number;
   interest: string;
   speaker: string;
   localOnly?: boolean;
+  // The global sound toggle: muting stops the voice and ignores late audio; unmuting replays the line.
+  muted?: boolean;
 }) {
   // Status belongs to one line; a new line starts out loading until its audio plays.
   const [state, setState] = useState<{ line: number; status: Status }>({
@@ -63,17 +66,20 @@ export function DialogueVoice({
     utterance.onend = () => set("done");
     utterance.onerror = () => set("done");
     window.speechSynthesis.cancel();
+    window.speechSynthesis.resume(); // a paused synthesizer would otherwise stay silent
     window.speechSynthesis.speak(utterance);
     set("playing");
   }
 
   function pause() {
+    if (muted) return;
     if (audio.current) audio.current.pause();
     else window.speechSynthesis?.pause();
     setState({ line, status: "paused" });
   }
 
   function resume() {
+    if (muted) return;
     if (audio.current)
       audio.current.play().then(
         () => setState({ line, status: "playing" }),
@@ -85,33 +91,37 @@ export function DialogueVoice({
     }
   }
 
-  // The encounter remounts this per visit, so its lines are fixed: start them all now.
+  // The encounter remounts this per visit, so its lines are fixed: start them all now (not while muted).
   useEffect(() => {
-    if (!localOnly) prefetchLines(lines, interest);
+    if (!localOnly && !muted) prefetchLines(lines, interest);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Speak each line as it appears; leaving the line (or the encounter) stops it.
+  // Speak each line as it appears; leaving the line (or the encounter), or muting, stops it.
   useEffect(() => {
+    if (muted) return stop();
     void play(line);
     return stop;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [line]);
+  }, [line, muted]);
 
   return (
     <div className="concept-voice" role="status">
       <span
-        className={`concept-voice-dot ${status === "playing" ? "live" : ""}`}
+        className={`concept-voice-dot ${!muted && status === "playing" ? "live" : ""}`}
         aria-hidden="true"
       />
       <span className="concept-voice-label">
-        {status === "loading"
-          ? `${speaker} is getting ready…`
-          : status === "playing"
-            ? `${speaker} is speaking`
-            : speaker}
+        {muted
+          ? speaker
+          : status === "loading"
+            ? `${speaker} is getting ready…`
+            : status === "playing"
+              ? `${speaker} is speaking`
+              : speaker}
       </span>
-      {status === "playing" && (
+      {muted && <span className="concept-voice-button">Muted</span>}
+      {!muted && status === "playing" && (
         <button
           className="concept-voice-button"
           aria-label="Pause spoken line"
@@ -120,7 +130,7 @@ export function DialogueVoice({
           Pause
         </button>
       )}
-      {status === "paused" && (
+      {!muted && status === "paused" && (
         <button
           className="concept-voice-button"
           aria-label="Play spoken line"
@@ -129,7 +139,7 @@ export function DialogueVoice({
           Play
         </button>
       )}
-      {status === "done" && (
+      {!muted && status === "done" && (
         <button
           className="concept-voice-button"
           aria-label="Replay spoken line"
