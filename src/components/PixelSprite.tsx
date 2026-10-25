@@ -7,6 +7,8 @@ export type SpriteKind =
   | "assistant"
   | "coordinator"
   | "coach"
+  | "astronaut"
+  | "chef"
   | "trophy";
 const palette: Record<string, string> = {
   d: "#233f32",
@@ -23,6 +25,48 @@ const palette: Record<string, string> = {
   p: "#6b7976",
 };
 const sprites: Record<SpriteKind, string[]> = {
+  astronaut: [
+    "......dddddd......",
+    ".....dwwwwwwd.....",
+    "....dwwwwwwwwd....",
+    "....dwyyyyyywd....",
+    "....dwyooooywd....",
+    "....dwyooooywd....",
+    "....dwyyyyyywd....",
+    ".....dwwwwwwd.....",
+    "..aaddddddddaa....",
+    "..addwwwwwwdda....",
+    "..adwwdbydwwwd....",
+    "..adwwdaaddwwd....",
+    "..adwwdwwdwwwd....",
+    "..addwwwwwwdda....",
+    "...dddwwwwddd.....",
+    ".....dwwdwwd......",
+    ".....dwwdwwd......",
+    "....ddaaddaadd....",
+    "....ddddddddd.....",
+  ],
+  chef: [
+    "....ddd.ddd.......",
+    "...dwwwdwwwd......",
+    "..dwwwwwwwwwd.....",
+    "..dwwwwwwwwwd.....",
+    "...dwwwwwwwd......",
+    "....dwwwwwd.......",
+    "....ddddddd.......",
+    "....dsssssd.......",
+    "....dsdssdd.......",
+    ".....dsssd....oo..",
+    "...ddgwwwgdd..oo..",
+    "..dwwgwgwgwwd..o..",
+    "..dssgwwwgssd..o..",
+    "..dssggwggssddso..",
+    "...dddwwwddd......",
+    ".....dwwwd........",
+    ".....dppdppd......",
+    "....ddppdppdd.....",
+    "....ddddddddd.....",
+  ],
   mage: [
     "........yd........",
     ".......dyyd.......",

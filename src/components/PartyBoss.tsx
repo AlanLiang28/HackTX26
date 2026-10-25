@@ -14,6 +14,7 @@ export type TeamResult = { players: number; teamAverage: number };
 export function PartyBoss({
   group,
   theme,
+  muted = false,
   onComplete,
   onNotes,
   onBack,
@@ -21,6 +22,7 @@ export function PartyBoss({
 }: {
   group: Group;
   theme: Theme;
+  muted?: boolean;
   onComplete: (result: TeamResult) => void;
   onNotes?: () => void;
   onBack: () => void;
@@ -361,7 +363,14 @@ export function PartyBoss({
                 </div>
                 {audioUrl && (
                   <div className="recording-preview">
-                    <audio controls src={audioUrl} />
+                    <audio
+                      controls
+                      src={audioUrl}
+                      muted={muted}
+                      onVolumeChange={(event) => {
+                        if (muted) event.currentTarget.muted = true;
+                      }}
+                    />
                     <button
                       className="combat-text-button"
                       onClick={() => setAudio(null)}

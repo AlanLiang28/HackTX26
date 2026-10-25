@@ -1,6 +1,8 @@
 export type IconName =
   | "sword"
   | "football"
+  | "rocket"
+  | "utensils"
   | "check"
   | "arrow"
   | "arrowLeft"
@@ -21,6 +23,10 @@ export type IconName =
   | "stop"
   | "retry";
 const paths: Record<IconName, string> = {
+  rocket:
+    "M11 1h2v2h2v3h2v8h2v3h2v5h-5v-4H8v4H3v-5h2v-3h2V6h2V3h2V1Zm-1 7v4h4V8h-4Zm0 12h4v3h-4v-3Z",
+  utensils:
+    "M2 1h2v6h2V1h2v6h2V1h2v9h-3v13H5V10H2V1Zm14 0h5v2h2v7h-2v3h-1v10h-4V13h-1v-3h-2V3h3V1Z",
   sword:
     "M15 2h5v5h-2v2h-2v2h-2v2h-2v2h2v2h-3v-2H9v2H7v2H5v2H2v-3h2v-2h2v-2h2v-2H6v-3h2v2h2V9h2V7h2V5h1V2Zm2 3v2h-2v2h-2v2h-2v2h2v-2h2V9h2V7h1V5h-1Z",
   football:

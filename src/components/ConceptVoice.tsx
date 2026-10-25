@@ -12,12 +12,14 @@ export function ConceptVoice({
   concepts,
   speaker,
   localOnly = false,
+  muted = false,
 }: {
   title: string;
   interest: string;
   concepts: Mapping[];
   speaker: string;
   localOnly?: boolean;
+  muted?: boolean;
 }) {
   const [status, setStatus] = useState<Status>("loading");
   const [current, setCurrent] = useState(0);
@@ -33,6 +35,7 @@ export function ConceptVoice({
 
   // Resolves when this concept finishes. Pause/Play act on audio.current, so the promise just waits.
   function speak(reply: CoachReply | null, c: Mapping) {
+    const mine = run.current;
     return new Promise<void>((done) => {
       if (reply?.audioBase64) {
         const a = new Audio(
@@ -43,8 +46,12 @@ export function ConceptVoice({
         audio.current = a;
         // Autoplay can be blocked; then the player presses Play and `ended` still resolves this.
         a.play().then(
-          () => setStatus("playing"),
-          () => setStatus("paused"),
+          () => {
+            if (mine === run.current) setStatus("playing");
+          },
+          () => {
+            if (mine === run.current) setStatus("paused");
+          },
         );
         return;
       }
@@ -57,6 +64,7 @@ export function ConceptVoice({
       utterance.onend = () => done();
       utterance.onerror = () => done();
       window.speechSynthesis.cancel();
+      window.speechSynthesis.resume();
       window.speechSynthesis.speak(utterance);
       setStatus("playing");
     });
@@ -87,6 +95,7 @@ export function ConceptVoice({
   }
 
   function resume() {
+    if (muted) return;
     if (audio.current)
       audio.current.play().then(
         () => setStatus("playing"),
@@ -99,18 +108,23 @@ export function ConceptVoice({
   }
 
   function replay() {
+    if (muted) return;
     setCurrent(0);
     setStatus("loading");
     void playFrom(0);
   }
 
-  // Encounter remounts per opponent, so this runs once per encounter.
+  // Muting ignores pending voice responses and stops playback. Unmuting restarts the current concept.
   useEffect(() => {
+    if (muted) {
+      stop();
+      return;
+    }
     // eslint-disable-next-line react-hooks/set-state-in-effect -- playFrom only sets state after an await
-    void playFrom(0);
+    void playFrom(current);
     return stop;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- current advances inside playFrom; it must not restart the sequence
+  }, [muted]);
 
   const name = concepts[current]?.concept ?? "";
   const count =
@@ -118,16 +132,17 @@ export function ConceptVoice({
   return (
     <div className="concept-voice" role="status">
       <span
-        className={`concept-voice-dot ${status === "playing" ? "live" : ""}`}
+        className={`concept-voice-dot ${!muted && status === "playing" ? "live" : ""}`}
         aria-hidden="true"
       />
       <span className="concept-voice-label">
-        {status === "loading"
+        {!muted && status === "loading"
           ? `${speaker} is preparing… `
           : `${speaker}${count}: `}
         <span>{name}</span>
       </span>
-      {status === "playing" && (
+      {muted && <span className="concept-voice-button">Muted</span>}
+      {!muted && status === "playing" && (
         <button
           className="concept-voice-button"
           aria-label="Pause spoken lesson"
@@ -136,7 +151,7 @@ export function ConceptVoice({
           Pause
         </button>
       )}
-      {status === "paused" && (
+      {!muted && status === "paused" && (
         <button
           className="concept-voice-button"
           aria-label="Play spoken lesson"
@@ -145,7 +160,7 @@ export function ConceptVoice({
           Play
         </button>
       )}
-      {status === "done" && (
+      {!muted && status === "done" && (
         <button
           className="concept-voice-button"
           aria-label="Replay spoken lesson"

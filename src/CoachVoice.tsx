@@ -12,25 +12,38 @@ export default function CoachVoice({
   topic,
   interest,
   facts,
+  muted = false,
 }: {
   topic: string;
   interest: string;
   facts?: string[];
+  muted?: boolean;
 }) {
   const [loading, setLoading] = useState(false);
   const [reply, setReply] = useState<CoachReply | null>(null);
   const [error, setError] = useState("");
   const request = useRef<AbortController | null>(null);
+  const audio = useRef<HTMLAudioElement | null>(null);
+  const mutedRef = useRef(muted);
+  useEffect(() => {
+    mutedRef.current = muted;
+    if (muted) {
+      audio.current?.pause();
+      window.speechSynthesis?.cancel();
+    }
+  }, [muted]);
   useEffect(
     () => () => {
       request.current?.abort();
+      audio.current?.pause();
       window.speechSynthesis?.cancel();
     },
     [],
   );
   function speak(text: string) {
-    if (!window.speechSynthesis) return;
+    if (mutedRef.current || !window.speechSynthesis) return;
     window.speechSynthesis.cancel();
+    window.speechSynthesis.resume();
     const utterance = new SpeechSynthesisUtterance(
       text.replace(/<[^>]+>/g, " "),
     );
@@ -96,12 +109,21 @@ export default function CoachVoice({
         <div className="voice-reply">
           {reply.audioBase64 ? (
             <audio
+              ref={audio}
               controls
-              autoPlay
+              autoPlay={!muted}
+              muted={muted}
+              onVolumeChange={(event) => {
+                if (muted) event.currentTarget.muted = true;
+              }}
               src={`data:${reply.mimeType};base64,${reply.audioBase64}`}
             />
           ) : window.speechSynthesis ? (
-            <button className="text-button" onClick={() => speak(reply.script)}>
+            <button
+              className="text-button"
+              disabled={muted}
+              onClick={() => speak(reply.script)}
+            >
               Listen again
             </button>
           ) : (

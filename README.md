@@ -39,6 +39,8 @@ Student adventures retain a **vertical foes list** and the existing character di
 
 Each solo opponent can speak its lesson, with one compact pause/play control. Live voices are prepared and cached as the adventure starts. Generated audio falls back to browser speech when unavailable; the offline demo reads its local lesson without requesting AI. Voice playback stops when leaving the lesson, and the final boss does not read out the concepts being assessed.
 
+The top-right sound control mutes lesson narration, coach audio, recording playback, and game sounds together. Its setting is saved on this device. Unmuting an encounter restarts its current spoken concept.
+
 After the solo round, **Find a study party** opens matching. Classmates who picked the same world come first; independent students also use subject similarity. Players who are still studying are disabled. A selection immediately creates or joins a party of two to four students. Matching refreshes about every three seconds, including when another student adds you to a party.
 
 **The shared boss** uses the group's weakest concepts. Starting closes the roster. Each player takes their turn speaking or typing an explanation; the server owns the turn, rubric, feedback, pass/fail, and victory. A failed attempt shows feedback and permits a retry. Everyone must pass every required concept and the team average must clear the server's threshold. The screen refreshes about every 1.5 seconds. Foes have no resolve or HP bars; party progress is available in a compact disclosure.
