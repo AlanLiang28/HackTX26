@@ -7,6 +7,7 @@ import { gamePack } from "./fixtures/game-pack.ts";
 import { lessonLines } from "../coach.ts";
 import { getLessonLines } from "../src/lib/characters.ts";
 import { adaptiveStudySession } from "../src/lib/adaptive.ts";
+import { isStudySession } from "../src/lib/study.ts";
 import type {
   AdaptiveGame,
   GameState,
@@ -149,6 +150,8 @@ test("adaptive game API", async (t) => {
       // first encounter's dialogue box shows, as App.tsx builds it.
       const session = adaptiveStudySession(game, "", "sports");
       session.content.quiz[0].subtopic = first.enemy.subtopic;
+      // App.tsx's refresh resume drops any saved run that fails this check.
+      assert.ok(isStudySession(session));
       assert.deepEqual(
         getLessonLines(session, 0, false),
         lessonLines(announced[0].concept),

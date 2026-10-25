@@ -37,6 +37,7 @@ import type { QuestRecord, StudySession, Theme } from "./lib/study";
 import "./App.css";
 import "./community.css";
 import {
+  GameExpiredError,
   adaptiveStudySession,
   nextAdaptiveEncounter,
   gradeAdaptiveAnswer,
@@ -467,6 +468,11 @@ export default function App() {
             : previous,
         );
       } catch (err) {
+        // The server forgot this game (it restarted): replay the round from the stored pack.
+        if (err instanceof GameExpiredError && member) {
+          void prepare((signal) => loadMemberGame(member, member.theme, signal));
+          return;
+        }
         setGameError(
           err instanceof Error
             ? err.message
@@ -815,8 +821,8 @@ export default function App() {
             demo={demo}
             onEnter={enterEncounter}
             onNotes={() => setOverlay("notes")}
-            busy={gameBusy}
-            error={gameError}
+            busy={gameBusy || loading}
+            error={gameError || error}
             outcomes={adaptive?.state.trail}
             partyBoss={!!member}
           />
