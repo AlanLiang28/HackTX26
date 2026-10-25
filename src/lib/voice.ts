@@ -1,65 +1,40 @@
-// AI coach voices for game concepts: one /api/coach call per concept, cached for the page's lifetime.
-// prefetchVoices() makes them all when a game begins, so each encounter's voice is usually ready on arrival.
-import type { Mapping } from "./study";
+// AI voices for encounter dialogue: the character speaks the exact line shown in the dialogue box.
+// One /api/speak call per distinct line, cached for the page's lifetime; prefetchLines() starts lines
+// early so each is usually ready by the time it appears.
 import { api } from "./classroom";
 
-export type CoachReply = {
-  script: string;
-  audioBase64: string | null;
-  mimeType: string;
-};
+export type SpokenLine = { audioBase64: string; mimeType: string };
 
-const cache = new Map<string, Promise<CoachReply>>();
+const cache = new Map<string, Promise<SpokenLine>>();
+const MAX_CACHED_LINES = 60; // ~0.5 MB of audio each
 
-// What the coach must cover; also what the browser reads aloud if the voice can't be made.
-// The server starts these voices early (warmConceptVoice in coach.ts), so keep both formats in sync.
-export const conceptFacts = (c: Mapping) =>
-  `${c.concept}: like ${c.analogy}. ${c.explanation}`;
-
-// The request body doubles as the cache key.
-const voiceKey = (title: string, interest: string, c: Mapping) =>
-  JSON.stringify({
-    topic: `${c.concept} (part of ${title})`,
-    interest,
-    facts: [conceptFacts(c)],
-  });
-
-export function fetchConceptVoice(title: string, interest: string, c: Mapping) {
-  const key = voiceKey(title, interest, c);
-  let reply = cache.get(key);
-  if (!reply) {
-    reply = api<CoachReply>("/api/coach", {
+export function fetchSpokenLine(text: string, interest: string) {
+  // The request body doubles as the cache key.
+  const key = JSON.stringify({ text, interest });
+  let line = cache.get(key);
+  if (!line) {
+    line = api<SpokenLine>("/api/speak", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: key,
     }).then((data) => {
-      if (typeof data.script !== "string" || !data.script.trim())
+      if (typeof data.audioBase64 !== "string" || !data.audioBase64)
         throw new Error("No voice available.");
       return data;
     });
-    reply.catch(() => cache.delete(key)); // let the encounter retry
-    cache.set(key, reply);
+    line.catch(() => cache.delete(key)); // let the encounter retry
+    cache.set(key, line);
+    if (cache.size > MAX_CACHED_LINES) cache.delete(cache.keys().next().value!);
   }
-  return reply;
+  return line;
 }
 
-// Two at a time keeps the first voices fast without tripping the per-minute limit.
-// Starting a new game stops the previous game's queue and frees its audio (a few MB per voice).
-let generation = 0;
-export function prefetchVoices(
-  title: string,
-  interest: string,
-  concepts: Mapping[],
-  parallel = 2,
-) {
-  const run = ++generation;
-  const keep = new Set(concepts.map((c) => voiceKey(title, interest, c)));
-  for (const key of cache.keys()) if (!keep.has(key)) cache.delete(key);
-  const queue = [...concepts];
+// Two at a time, in order, keeps the next lines coming without tripping the per-minute limit.
+export function prefetchLines(lines: string[], interest: string, parallel = 2) {
+  const queue = [...lines];
   const worker = async () => {
-    while (run === generation && queue.length) {
-      await fetchConceptVoice(title, interest, queue.shift()!).catch(() => {});
-    }
+    while (queue.length)
+      await fetchSpokenLine(queue.shift()!, interest).catch(() => {});
   };
-  for (let i = 0; i < parallel; i++) void worker();
+  for (let i = 0; i < Math.min(parallel, queue.length); i++) void worker();
 }

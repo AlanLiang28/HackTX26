@@ -259,9 +259,11 @@ function normalizePack(raw: unknown): Pack {
   };
 }
 
-// server.ts plugs in warmConceptVoice (coach.ts), so each concept's voice starts as soon as its lesson
-// has streamed in, while the rest of the pack is still generating. Unset (e.g. in tests), nothing starts.
-type ConceptListener = (title: string, interest: string, c: { name: string; analogy: string; lesson: string }) => void;
+// Hears each concept (in order, from 0) as soon as its lesson has streamed in, while the rest of the pack
+// is still generating; server.ts uses it to start the first enemy's dialogue voice. Unset (e.g. in tests), nothing happens.
+type ConceptListener = (
+  title: string, interest: string, c: { name: string; analogy: string; lesson: string }, index: number,
+) => void;
 let onConcept: ConceptListener | null = null;
 export function onPackConcept(listener: ConceptListener | null) {
   onConcept = listener;
@@ -290,11 +292,11 @@ function announceConcepts(text: string, interest: string, announced: Set<string>
     const [name, analogy, lesson] = [m[1], m[2], m[3]].map(unquote);
     if (!name || !analogy || !lesson || announced.has(name) || announced.size >= 6) continue;
     announced.add(name);
-    onConcept(title, interest, { name, analogy, lesson });
+    onConcept(title, interest, { name, analogy, lesson }, announced.size - 1);
   }
 }
 
-// warmVoices: announce concepts as they stream (onPackConcept). Only /start asks, since its player is waiting;
+// warmVoices: announce concepts as they stream (onPackConcept). Only /start and free-agent signup ask, since their player is waiting;
 // class packs (classes.ts) are built ahead of time and would spend the small daily TTS quota on unheard voices.
 export async function generatePack(input: StartInput, warmVoices = false): Promise<Pack> {
   // API errors (bad key, rate limit) throw an LlmError straight away and are not retried.
@@ -434,7 +436,7 @@ function chooseQuestion(game: Game, player: Player): Question {
   const tied = weakest.filter(
     (s) => player.proficiency[s.id].attempts === fewest,
   );
-  // A new player starts with the first subtopic: its voice is the first one started (see onPackConcept).
+  // A new player starts with the first subtopic: its dialogue voice is started while the pack generates (onPackConcept).
   const sub = player.used.length === 0 ? tied[0] : pick(tied);
   const all = game.pack.questions.filter((q) => q.subtopic === sub.id);
   const fresh = all.filter((q) => !player.used.includes(q.id));
