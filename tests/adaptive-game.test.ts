@@ -4,6 +4,9 @@ import { test } from "node:test";
 import express from "express";
 import { gameRouter, onPackConcept } from "../game-routes.ts";
 import { gamePack } from "./fixtures/game-pack.ts";
+import { lessonLines } from "../coach.ts";
+import { getLessonLines } from "../src/lib/characters.ts";
+import { adaptiveStudySession } from "../src/lib/adaptive.ts";
 import type {
   AdaptiveGame,
   GameState,
@@ -27,9 +30,14 @@ test("adaptive game API", async (t) => {
       headers: { "Content-Type": "text/event-stream" },
     });
   });
-  const announced: { title: string; interest: string; name: string }[] = [];
-  onPackConcept((title, interest, c) =>
-    announced.push({ title, interest, name: c.name }),
+  const announced: {
+    title: string;
+    interest: string;
+    index: number;
+    concept: { name: string; analogy: string; lesson: string };
+  }[] = [];
+  onPackConcept((title, interest, concept, index) =>
+    announced.push({ title, interest, index, concept }),
   );
   t.mock.method(Math, "random", () => 0);
   const app = express();
@@ -130,12 +138,21 @@ test("adaptive game API", async (t) => {
       announced.length = 0;
       const game = await start();
       assert.deepEqual(
-        announced.map((c) => c.name),
-        ["Nucleus", "Mitochondria", "Membrane", "Ribosomes"],
+        announced.map((c) => [c.index, c.concept.name]),
+        [[0, "Nucleus"], [1, "Mitochondria"], [2, "Membrane"], [3, "Ribosomes"]],
       );
       assert(announced.every((c) => c.title === "The Cell Kingdom"));
       const first = (await next(game)).encounter!;
       assert.equal(first.enemy.subtopic, "Nucleus");
+
+      // The server voices these lines early (warmLessonLines), so they must be exactly what the
+      // first encounter's dialogue box shows, as App.tsx builds it.
+      const session = adaptiveStudySession(game, "", "sports");
+      session.content.quiz[0].subtopic = first.enemy.subtopic;
+      assert.deepEqual(
+        getLessonLines(session, 0, false),
+        lessonLines(announced[0].concept),
+      );
     },
   );
 

@@ -5,7 +5,7 @@ import path from "node:path";
 import pg from "pg";
 import { GoogleGenAI } from "@google/genai";
 import OpenAI from "openai";
-import { registerCoachRoute, warmConceptVoice } from "./coach.ts";
+import { registerCoachRoute, warmLessonLines } from "./coach.ts";
 import rateLimit from "express-rate-limit";
 import { gameRouter, onPackConcept } from "./game-routes.ts";
 import { generateText, parseJsonLoose, pdfText, LlmError } from "./llm.ts";
@@ -41,7 +41,7 @@ const AI_ROUTES = [
 
 // Voice explanations have their own, looser limits: the game makes one per concept
 // ahead of time (about 4-6 per game), which would blow through the general limit.
-const VOICE_ROUTES = ["/api/coach"];
+const VOICE_ROUTES = ["/api/coach", "/api/speak"];
 
 // Whole site: hard cap on calls per day, so costs can't run away
 function dailyBudget(max: number) {
@@ -80,8 +80,11 @@ app.post(
 
 // Battle mode. Mounted BEFORE express.json() because it brings its own JSON parser.
 app.use("/api/game", gameRouter);
-// Start each concept's voice while the game is still generating, so the first enemy's voice is ready sooner.
-onPackConcept(warmConceptVoice);
+// While the game is still generating, speak the first concept's lesson lines: the first enemy teaches
+// it, so its dialogue voice is ready when the player arrives.
+onPackConcept((_title, interest, concept, index) => {
+  if (index === 0) warmLessonLines(interest, concept);
+});
 
 app.use(express.json());
 registerCoachRoute(app);

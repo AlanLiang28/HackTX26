@@ -30,7 +30,7 @@ import {
   saveQuest,
 } from "./lib/study";
 import { getCharacter, worlds } from "./lib/characters";
-import { prefetchVoices } from "./lib/voice";
+import { prefetchLines } from "./lib/voice";
 import { readStudyFile } from "./lib/material";
 import type { QuestRecord, StudySession, Theme } from "./lib/study";
 import "./App.css";
@@ -189,13 +189,18 @@ export default function App() {
     saved.current = false;
     setScreen("journey");
     chime();
-    // Make every concept's voice now, so encounters don't wait for it.
-    if (!isDemo)
-      prefetchVoices(
-        next.content.title,
+    // Voice each character's opening line now (the same every game, so usually already cached); the
+    // server is already voicing the first enemy's lesson lines while the game generates.
+    if (!isDemo) {
+      const encounters = next.content.quiz.length;
+      prefetchLines(
+        Array.from(
+          { length: encounters + 1 },
+          (_, i) => getCharacter(targetTheme, i, i === encounters).introduction,
+        ),
         interestFor(targetTheme),
-        next.content.mappings,
       );
+    }
   }
   function goHome() {
     setOverlay(null);

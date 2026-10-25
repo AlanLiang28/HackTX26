@@ -373,7 +373,8 @@ export function classRouter({ db, ai }: { db: pg.Pool; ai: GoogleGenAI }) {
     if (!THEMES.includes(theme)) return fail(res, 400, "bad_theme", "Pick sports or fantasy.");
     let pack: Pack;
     try {
-      pack = await generatePack({ topic: "", interest: interestFor(theme), level: "high school", material, playerName: name });
+      // true: the player is waiting to play, so start the first enemy's dialogue voice while the pack streams.
+      pack = await generatePack({ topic: "", interest: interestFor(theme), level: "high school", material, playerName: name }, true);
     } catch (e) {
       console.error("free agent pack failed:", e);
       return fail(res, 502, "upstream_failed", e instanceof LlmError ? e.message : "Couldn't build the game. Try again.");

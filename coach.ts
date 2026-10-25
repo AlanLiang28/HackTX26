@@ -182,6 +182,29 @@ function makeVoice(topic: string, interest: string, facts: string[]): Promise<Vo
   return voice;
 }
 
+// ---------- Encounter dialogue: the character speaks the exact line on screen ----------
+// No script to write: Gemini TTS performs the given text in the theme's character voice.
+type SpokenLine = { audioBase64: string; mimeType: string };
+const spokenLines = new Map<string, Promise<SpokenLine>>();
+
+export function speakLine(text: string, interest: string): Promise<SpokenLine> {
+  const p = pickPersona(interest);
+  const key = JSON.stringify({ text, voice: p.voice, style: p.style });
+  let line = spokenLines.get(key);
+  if (!line) {
+    line = speak(text, p.voice, p.style).then((audioBase64) => {
+      if (!audioBase64) throw new Error("No speech audio.");
+      return { audioBase64, mimeType: "audio/wav" };
+    });
+    spokenLines.set(key, line);
+    line.then(
+      () => setTimeout(() => spokenLines.delete(key), VOICE_TTL_MS).unref(),
+      () => spokenLines.delete(key), // let a later request retry
+    );
+  }
+  return line;
+}
+
 // Early starts run two at a time (like the browser's prefetch) to stay under Gemini TTS per-minute limits.
 const warmQueue: (() => Promise<unknown>)[] = [];
 let warming = 0;
@@ -195,13 +218,18 @@ function drainWarmQueue() {
   }
 }
 
-// Starts a game concept's voice before the browser asks for it; game-routes.ts calls this while the
-// game is still generating. topic and facts must match conceptFacts/fetchConceptVoice in src/lib/voice.ts,
-// or the browser's request misses this voice and makes its own.
-export function warmConceptVoice(title: string, interest: string, c: { name: string; analogy: string; lesson: string }) {
-  warmQueue.push(() =>
-    makeVoice(`${c.name} (part of ${title})`, interest, [`${c.name}: like ${c.analogy}. ${c.lesson}`]).catch(() => {}),
-  );
+// A concept's lesson lines as the dialogue box shows them. Must match getLessonLines in
+// src/lib/characters.ts word for word (tests/adaptive-game.test.ts checks), or the browser's request
+// misses the lines voiced early and voices them again.
+export const lessonLines = (c: { name: string; analogy: string; lesson: string }) => [
+  `${c.name}. Think of it as ${c.analogy}.`,
+  c.lesson,
+];
+
+// Speaks a concept's lesson lines before the browser asks for them; server.ts calls this for the first
+// concept while the game is still generating (the first enemy teaches it).
+export function warmLessonLines(interest: string, c: { name: string; analogy: string; lesson: string }) {
+  for (const text of lessonLines(c)) warmQueue.push(() => speakLine(text, interest).catch(() => {}));
   drainWarmQueue();
 }
 
@@ -223,6 +251,21 @@ export function registerCoachRoute(app: Express) {
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: "Couldn't make the voice explanation. Please try again." });
+    }
+  });
+
+  // One dialogue line, spoken as written (encounters; see speakLine).
+  app.post("/api/speak", async (req, res) => {
+    const { text, interest } = req.body as { text?: unknown; interest?: unknown };
+    if (typeof text !== "string" || !text.trim() || text.length > 1500 || typeof interest !== "string" || !interest.trim()) {
+      res.status(400).json({ error: "Need a line of text (up to 1500 characters) and an interest." });
+      return;
+    }
+    try {
+      res.json(await speakLine(text, interest));
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Couldn't voice that line." });
     }
   });
 }
