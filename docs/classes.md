@@ -96,6 +96,7 @@ Ranking is by world: `score` is 1 for the same world as you, else 0, with ties g
 
 - If neither student is grouped, this creates a group with both of them.
 - If one of them is grouped, the other joins that group.
+- `partnerId` equal to `memberId` creates a group of one, for playing the boss solo.
 - Errors: `404 member_not_found`, `409 not_ready | already_grouped | boss_started | group_full`.
 
 Each time a member joins, the boss's key concepts are recomputed from the whole group's phase 1 answers.

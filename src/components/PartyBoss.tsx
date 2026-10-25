@@ -236,8 +236,10 @@ export function PartyBoss({
       <div className="encounter-topline">
         <span>
           <span className="status-square" />
-          FINAL MEETING · {state?.players.length ?? group.members.length}{" "}
-          PLAYERS
+          FINAL MEETING ·{" "}
+          {(state?.players.length ?? group.members.length) === 1
+            ? "SOLO"
+            : `${state?.players.length ?? group.members.length} PLAYERS`}
         </span>
         <details ref={menu} className="encounter-options">
           <summary aria-label="Boss options">
