@@ -47,7 +47,7 @@ const game = {
     lives: 3,
     maxLives: 3,
     completed: 0,
-    total: 6,
+    total: 3,
     defeated: 0,
     trail: [],
     phase: "battle",

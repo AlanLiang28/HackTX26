@@ -21,7 +21,7 @@ import { randomUUID } from "node:crypto";
 
 // ---------- Settings ----------
 const MAX_LIVES = 3;
-const ENCOUNTERS_BEFORE_BOSS = 6;
+export const ENCOUNTERS_BEFORE_BOSS = 3;
 const QUESTIONS_PER_SUBTOPIC = 3;
 const GAME_TTL_MS = 3 * 60 * 60 * 1000;
 const DEFAULT_ACCENT = "#8b7cf6";

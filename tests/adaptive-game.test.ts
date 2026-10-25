@@ -249,20 +249,22 @@ test("adaptive game API", async (t) => {
   );
 
   await t.test(
-    "six answers unlock a boss focused on a tested weak topic",
+    "three study encounters unlock the fourth and final boss encounter",
     async () => {
       const game = await start();
+      assert.equal(game.state.total, 3);
       const ids = new Set<string>();
       let last: GradedAnswer | undefined;
-      for (let i = 0; i < 6; i++) {
+      for (let i = 0; i < 3; i++) {
         const encounter = (await next(game)).encounter!;
         assert(!ids.has(encounter.question.id));
         ids.add(encounter.question.id);
         last = await answer(game, encounter, i !== 0);
+        assert.equal(last.state.phase, i < 2 ? "battle" : "boss_ready");
       }
       assert.equal(last!.state.phase, "boss_ready");
-      assert.equal(last!.state.defeated, 5);
-      assert.equal(last!.state.completed, 6);
+      assert.equal(last!.state.defeated, 2);
+      assert.equal(last!.state.completed, 3);
       const tested = last!.state.report.filter((s) => s.attempts > 0);
       assert.equal(
         last!.state.weakest!.score,
