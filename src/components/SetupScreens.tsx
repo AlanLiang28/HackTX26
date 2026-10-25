@@ -198,14 +198,6 @@ export function MaterialsScreen({
                     ? "Your pasted notes are ready"
                     : "Drop your notes here")}
             </strong>
-            <span>
-              {notes.trim()
-                ? `${notes.length.toLocaleString()} characters · click to replace`
-                : "or browse files · TXT or Markdown"}
-            </span>
-            <small>
-              Up to 20,000 characters. Paste text from PDFs or slides.
-            </small>
           </button>
         ) : (
           <div className="notes-wrapper">
