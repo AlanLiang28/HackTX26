@@ -35,6 +35,7 @@ Send the header `X-Teacher-Token: <teacherToken>`. A wrong or missing token retu
 {
   "code": "A1B2C3", "name": "Bio 101", "teacherName": "Dr. Lee", "level": "intro college",
   "worldsReady": ["sports", "fantasy"],          // packs built; students can start phase 1 instantly
+  "worldErrors": { "fantasy": "…" },             // worlds not building right now, and why; a student picking one retries it
   "members": [{ "id": "…", "name": "Ada", "theme": "fantasy",
                 "ready": true, "groupCode": "9F3E1A" | null, "attempts": 6, "accuracy": 0.83 | null }],
   "groups": [{ "code": "9F3E1A", "theme": "fantasy", "boss": "not_started" | "active" | "defeated",
@@ -49,10 +50,10 @@ Send the header `X-Teacher-Token: <teacherToken>`. A wrong or missing token retu
 // request
 { "name": "Ada" }
 // 200
-{ "memberId": "…", "class": { "code": "A1B2C3", "name": "Bio 101", "teacherName": "Dr. Lee" } }
+{ "memberId": "…", "memberToken": "…", "class": { "code": "A1B2C3", "name": "Bio 101", "teacherName": "Dr. Lee" } }
 ```
 
-Store `memberId`. It identifies the student on every later call. There's no interest picker: the world they choose when they play (`/play`) is what matching uses. Errors: `404 class_not_found`, `400 missing_name`.
+Store `memberId` and `memberToken`. `memberId` identifies the student on every later call, and every member route (`/play`, the status poll, groups, and the free-agent versions) also needs the header `X-Member-Token: <memberToken>`, because member ids show up in classmates' match lists. A wrong or missing token returns `403 not_member`. There's no interest picker: the world they choose when they play (`/play`) is what matching uses. Errors: `404 class_not_found`, `400 missing_name`.
 
 ### `POST /api/classes/:code/members/:memberId/play` (phase 1)
 
@@ -109,10 +110,10 @@ A free agent is a player who isn't in a class. They bring their own notes, play 
    // request
    { "name": "Ada", "theme": "sports" | "fantasy", "material": "…notes, up to 20,000 chars…" }
    // 200: the same shape as POST /api/game/start, plus memberId
-   { "memberId": "…", "gameId": "…", "playerId": "…", "pack": { … }, "state": { … } }
+   { "memberId": "…", "memberToken": "…", "gameId": "…", "playerId": "…", "pack": { … }, "state": { … } }
    ```
 
-   Store `memberId`, then drive the game with `/api/game/:gameId/next`, `/answer`, and `/restart`. Errors: `400 missing_name | missing_material | material_too_long | bad_theme`, `502 upstream_failed`.
+   Store `memberId` and `memberToken` (send it as `X-Member-Token` on the routes below), then drive the game with `/api/game/:gameId/next`, `/answer`, and `/restart`. Errors: `400 missing_name | missing_material | material_too_long | bad_theme`, `502 upstream_failed`.
 
 2. `POST /api/free-agents/:memberId/play` replays phase 1 from their stored pack, with no model call. Use it after a server restart.
 3. `GET /api/free-agents/:memberId` returns the same `{ member, group, matches }` view as the class version. Poll it about every 3 seconds while matching.

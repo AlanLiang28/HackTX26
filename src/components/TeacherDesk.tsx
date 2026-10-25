@@ -130,10 +130,24 @@ function TeacherDashboard({
                     size={14}
                   />
                   {world === "sports" ? "Sports" : "Fantasy"} ·{" "}
-                  {data.worldsReady.includes(world) ? "Ready" : "Preparing"}
+                  {data.worldsReady.includes(world)
+                    ? "Ready"
+                    : data.worldErrors?.[world]
+                      ? "Not ready"
+                      : "Preparing"}
                 </span>
               ))}
             </div>
+            {(["sports", "fantasy"] as const).map(
+              (world) =>
+                data.worldErrors?.[world] && (
+                  <Notice key={world}>
+                    {world === "sports" ? "Sports" : "Fantasy"} couldn't be
+                    built: {data.worldErrors[world]} It will try again when a
+                    student picks it.
+                  </Notice>
+                ),
+            )}
             <div
               className="dashboard-tabs"
               role="group"

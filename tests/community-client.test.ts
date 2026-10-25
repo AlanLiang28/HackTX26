@@ -228,7 +228,7 @@ test("community clients follow the class, matching, teacher and boss contracts",
     );
     assert.equal(last().options.body, undefined);
   });
-  await t.test("friends and chat carry the member token", async () => {
+  await t.test("member, friends and chat calls carry the member token", async () => {
     reply = {
       memberId: "member",
       memberToken: "secret",
@@ -238,6 +238,14 @@ test("community clients follow the class, matching, teacher and boss contracts",
     assert.equal(member.token, "secret");
     const token = () =>
       new Headers(last().options.headers).get("X-Member-Token");
+    reply = game;
+    await playMember(member, "sports");
+    assert.equal(token(), "secret");
+    reply = memberView;
+    await getMember(member);
+    assert.equal(token(), "secret");
+    await pickPartner(member, "peer");
+    assert.equal(token(), "secret");
     reply = { friends: [{ id: "peer", name: "Linus", status: "incoming" }] };
     assert.equal((await getFriends(member))[0].status, "incoming");
     assert.equal(last().path, "/api/members/member/friends");

@@ -13,6 +13,7 @@ import { bossRouter } from "./boss.ts";
 import { classRouter } from "./classes.ts";
 import { friendRouter } from "./friends.ts";
 import { sitePassword } from "./site-password.ts";
+import { apiErrors, apiNotFound } from "./api-errors.ts";
 
 process.loadEnvFile();
 
@@ -176,12 +177,14 @@ app.get("/api/stats", async (_req, res) => {
 app.use(bossRouter({ db, muse }));
 app.use(classRouter({ db, ai })); // classes, free agents + matching; groups play the boss above (docs/classes.md)
 app.use(friendRouter({ db })); // friends + chat between players
+app.use("/api", apiNotFound); // any other /api path: JSON 404, not the site's index.html
 
 // ---- Serve the built React site (after `npm run build`) ----
 app.use(express.static(path.resolve("dist")));
 app.use((_req, res) => {
   res.sendFile(path.resolve("dist", "index.html"));
 });
+app.use(apiErrors); // last: JSON for any error (bad JSON, body too big, DB down), never a stack trace
 
 const PORT = Number(process.env.PORT ?? 3001);
 app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));

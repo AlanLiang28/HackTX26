@@ -9,7 +9,7 @@ export type MemberContext = Profile & {
   kind: "class" | "free";
   theme: Theme;
   class?: ClassInfo;
-  token?: string; // friends + chat key; players saved before friends existed have none
+  token?: string; // proves this player is them; players saved before tokens existed have none and must rejoin
 };
 export type SavedClass = { code: string; name: string; teacherToken: string };
 export type Group = {
@@ -46,6 +46,7 @@ export type ChatMessage = { id: string; mine: boolean; body: string; at: string 
 export type Dashboard = ClassInfo & {
   level: string;
   worldsReady: Theme[];
+  worldErrors?: Partial<Record<Theme, string>>; // worlds not building right now, and why
   members: {
     id: string;
     name: string;
@@ -114,6 +115,10 @@ const pathFor = (member: MemberContext) =>
   member.kind === "class"
     ? `/api/classes/${encodeURIComponent(member.class!.code)}/members/${encodeURIComponent(member.memberId)}`
     : `/api/free-agents/${encodeURIComponent(member.memberId)}`;
+// Every member route checks this: member ids show up in classmates' match lists, tokens never do.
+const asMember = (member: MemberContext) => ({
+  "X-Member-Token": member.token ?? "",
+});
 
 export async function joinClass(
   code: string,
@@ -164,7 +169,7 @@ export async function playMember(
   signal?: AbortSignal,
 ) {
   return parseAdaptiveGame(
-    await post(`${pathFor(member)}/play`, { theme }, signal),
+    await post(`${pathFor(member)}/play`, { theme }, signal, asMember(member)),
   );
 }
 function validateMemberView(data: MemberView): MemberView {
@@ -182,7 +187,9 @@ function validateMemberView(data: MemberView): MemberView {
   return data;
 }
 export async function getMember(member: MemberContext, signal?: AbortSignal) {
-  return validateMemberView(await api<MemberView>(pathFor(member), { signal }));
+  return validateMemberView(
+    await api<MemberView>(pathFor(member), { headers: asMember(member), signal }),
+  );
 }
 export async function pickPartner(
   member: MemberContext,
@@ -198,14 +205,12 @@ export async function pickPartner(
       path,
       { memberId: member.memberId, partnerId },
       signal,
+      asMember(member),
     ),
   );
 }
 const friendsPath = (member: MemberContext, friendId = "") =>
   `/api/members/${encodeURIComponent(member.memberId)}/friends${friendId ? `/${encodeURIComponent(friendId)}/messages` : ""}`;
-const asMember = (member: MemberContext) => ({
-  "X-Member-Token": member.token ?? "",
-});
 function validateList<T>(data: Record<string, unknown>, key: string) {
   if (!Array.isArray(data[key]))
     throw new ApiError(`The ${key} response was incomplete.`);
@@ -298,6 +303,7 @@ export function readMember(): MemberContext | null {
   return saved &&
     typeof saved.memberId === "string" &&
     typeof saved.name === "string" &&
+    typeof saved.token === "string" &&
     (saved.kind === "free" || (saved.kind === "class" && saved.class?.code)) &&
     ["sports", "fantasy"].includes(saved.theme)
     ? saved
