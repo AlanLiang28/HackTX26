@@ -3,7 +3,7 @@
 import express from "express";
 import type pg from "pg";
 import type OpenAI from "openai";
-import { modelName, withGeminiFallback } from "./llm.ts";
+import { messageForError, modelName, withGeminiFallback } from "./llm.ts";
 
 export const PASS_MIN_CORRECTNESS = 3;  // out of 4. Correctness gates everything.
 export const PASS_MIN_TOTAL = 11;       // out of 16
@@ -236,7 +236,11 @@ export function bossRouter({ db, muse }: { db: pg.Pool; muse: OpenAI | null }) {
         rubric = await grade(concept, f.session.level, transcript);
       } catch (err) {
         console.error(err);
-        return fail(res, 502, "upstream_failed", "Couldn't reach the grader. Try again.");
+        // Gemini errors carry a status (quota, bad key...); say which instead of a generic retry.
+        const status = (err as { status?: number }).status;
+        return fail(res, 502, "upstream_failed", typeof status === "number"
+          ? messageForError(status, String((err as Error).message))
+          : "Couldn't reach the grader. Try again.");
       }
       const total = rubric.correctness + rubric.depth + rubric.understanding + rubric.clarity;
       const passed = isPass(rubric);

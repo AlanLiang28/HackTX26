@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { PixelSprite } from "./PixelSprite";
 import { PixelIcon } from "./PixelIcon";
-import { INTERESTS } from "../lib/classroom";
 import type { MemberContext, Profile } from "../lib/classroom";
 
 export function Notice({ children }: { children: React.ReactNode }) {
@@ -9,45 +8,6 @@ export function Notice({ children }: { children: React.ReactNode }) {
     <p className="error-feedback" role="alert">
       {children}
     </p>
-  );
-}
-export function InterestChips({
-  value,
-  onChange,
-  disabled = false,
-}: {
-  value: string[];
-  onChange: (next: string[]) => void;
-  disabled?: boolean;
-}) {
-  return (
-    <fieldset className="interest-picker" disabled={disabled}>
-      <legend>
-        Your interests <small>{value.length}/10</small>
-      </legend>
-      <div className="interest-chips">
-        {INTERESTS.map((label) => {
-          const tag = label.toLowerCase();
-          const selected = value.includes(tag);
-          return (
-            <button
-              key={tag}
-              type="button"
-              className={`interest-chip ${selected ? "selected" : ""}`}
-              aria-pressed={selected}
-              disabled={!selected && value.length >= 10}
-              onClick={() =>
-                onChange(
-                  selected ? value.filter((v) => v !== tag) : [...value, tag],
-                )
-              }
-            >
-              {selected && <PixelIcon name="check" size={11} />} {label}
-            </button>
-          );
-        })}
-      </div>
-    </fieldset>
   );
 }
 export function StartScreen({
@@ -126,6 +86,7 @@ export function StartScreen({
 }
 export function ProfileScreen({
   initial,
+  initialCode = "",
   joining,
   busy,
   error,
@@ -133,6 +94,7 @@ export function ProfileScreen({
   onBack,
 }: {
   initial: Profile;
+  initialCode?: string;
   joining: boolean;
   busy: boolean;
   error: string;
@@ -140,12 +102,7 @@ export function ProfileScreen({
   onBack: () => void;
 }) {
   const [name, setName] = useState(initial.name);
-  const [interests, setInterests] = useState(
-    initial.interests.filter((tag) =>
-      INTERESTS.some((label) => label.toLowerCase() === tag),
-    ),
-  );
-  const [code, setCode] = useState("");
+  const [code, setCode] = useState(initialCode);
   return (
     <>
       <div className="page-intro">
@@ -161,7 +118,7 @@ export function ProfileScreen({
         className="profile-panel pixel-panel form-stack"
         onSubmit={(event) => {
           event.preventDefault();
-          onSubmit({ name: name.trim(), interests }, code);
+          onSubmit({ name: name.trim() }, code);
         }}
       >
         {joining && (
@@ -196,24 +153,14 @@ export function ProfileScreen({
             placeholder="What should we call you?"
           />
         </label>
-        <InterestChips
-          value={interests}
-          onChange={setInterests}
-          disabled={busy}
-        />
         <p className="field-help">
-          Shared interests help you find study partners. Your world is still
-          Sports or Fantasy.
+          Study partners are matched by your world: players who pick Sports
+          team up with Sports, and Fantasy with Fantasy.
         </p>
         {error && <Notice>{error}</Notice>}
         <button
           className="primary-button full-width"
-          disabled={
-            busy ||
-            !name.trim() ||
-            !interests.length ||
-            (joining && code.length !== 6)
-          }
+          disabled={busy || !name.trim() || (joining && code.length !== 6)}
         >
           {busy
             ? "Joining your class…"

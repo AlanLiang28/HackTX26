@@ -9,6 +9,7 @@ import { Modal } from "./components/Modal";
 import { StartScreen, ProfileScreen } from "./components/CommunityScreens";
 import { TeacherDesk } from "./components/TeacherDesk";
 import { MatchingScreen } from "./components/MatchingScreen";
+import { FriendsPanel } from "./components/FriendsPanel";
 import { PartyBoss } from "./components/PartyBoss";
 import type { TeamResult } from "./components/PartyBoss";
 import {
@@ -55,7 +56,7 @@ type Screen =
   | "journey"
   | "battle"
   | "results";
-type Overlay = "help" | "history" | "notes" | "home" | null;
+type Overlay = "help" | "history" | "notes" | "home" | "friends" | null;
 const setupScreens: Screen[] = [
   "start",
   "profile",
@@ -65,15 +66,19 @@ const setupScreens: Screen[] = [
   "materials",
 ];
 const navSteps = ["Setup", "Solo round", "Final meeting"];
+// Kahoot-style join link: /A1B2C3 opens the join screen with the code filled in.
+const linkCode =
+  /^\/([a-z0-9]{6})\/?$/i.exec(location.pathname)?.[1].toUpperCase() ?? "";
+if (linkCode) history.replaceState(null, "", "/");
 
 export default function App() {
-  const [screen, setScreen] = useState<Screen>("start");
-  const [mode, setMode] = useState<"free" | "class">("free");
+  const [screen, setScreen] = useState<Screen>(linkCode ? "join" : "start");
+  const [mode, setMode] = useState<"free" | "class">(
+    linkCode ? "class" : "free",
+  );
   const [profile, setProfile] = useState<Profile>(() => {
-    const value = recall<Profile>("profile", { name: "", interests: [] });
-    return typeof value.name === "string" && Array.isArray(value.interests)
-      ? value
-      : { name: "", interests: [] };
+    const value = recall<Profile>("profile", { name: "" });
+    return typeof value.name === "string" ? { name: value.name } : { name: "" };
   });
   const [member, setMember] = useState<MemberContext | null>(null);
   const [savedMember, setSavedMember] = useState(readMember);
@@ -573,6 +578,15 @@ export default function App() {
           >
             <PixelIcon name={sound ? "sound" : "mute"} size={19} />
           </button>
+          {!inCombat && savedMember?.token && (
+            <button
+              className="icon-button"
+              aria-label="Open friends"
+              onClick={() => setOverlay("friends")}
+            >
+              <PixelIcon name="team" size={18} />
+            </button>
+          )}
           {!inCombat && (
             <button
               className="icon-button"
@@ -615,6 +629,7 @@ export default function App() {
           <ProfileScreen
             key={screen}
             initial={profile}
+            initialCode={linkCode}
             joining={screen === "join"}
             busy={loading}
             error={error}
@@ -913,7 +928,7 @@ export default function App() {
                 <strong>Choose a world. Bring your notes.</strong>
                 <p>
                   Bring your own notes or join with a class code. Pick Sports or
-                  Fantasy and choose a few interests to find study partners.
+                  Fantasy: you'll team up with players who picked the same world.
                 </p>
               </div>
             </li>
@@ -1049,6 +1064,11 @@ export default function App() {
               <p>Complete an adventure and it will appear in your quest log.</p>
             </div>
           )}
+        </Modal>
+      )}
+      {overlay === "friends" && savedMember && (
+        <Modal title="Friends" onClose={() => setOverlay(null)}>
+          <FriendsPanel member={savedMember} />
         </Modal>
       )}
       {overlay === "home" && (

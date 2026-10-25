@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { getMember, pickPartner } from "../lib/classroom";
+import { addFriend, getFriends, getMember, pickPartner } from "../lib/classroom";
 import type { Group, MemberContext, MemberView } from "../lib/classroom";
 import { startBoss } from "../lib/party";
+import { worlds } from "../lib/characters";
 import { usePolling } from "../lib/usePolling";
 import { PixelIcon } from "./PixelIcon";
 import { PixelSprite } from "./PixelSprite";
@@ -23,6 +24,11 @@ export function MatchingScreen({
   const [updated, setUpdated] = useState<MemberView | null>(null);
   const operation = useRef<AbortController | null>(null);
   const poll = usePolling((signal) => getMember(member, signal), 3000, !!busy);
+  const friends = usePolling(
+    (signal) => getFriends(member, signal),
+    10000,
+    !member.token,
+  );
   useEffect(() => {
     if (poll.data) setUpdated(null);
   }, [poll.data]);
@@ -48,6 +54,15 @@ export function MatchingScreen({
         setBusy("");
         poll.refresh();
       }
+    }
+  }
+  async function befriend(id: string) {
+    setError("");
+    try {
+      await addFriend(member, id);
+      friends.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not add friend.");
     }
   }
   async function begin() {
@@ -115,15 +130,35 @@ export function MatchingScreen({
         {group && (
           <>
             <div className="party-roster">
-              {group.members.map((person) => (
-                <div className="party-person" key={person.id}>
-                  <PixelIcon name="person" size={17} />
-                  <span>
-                    {person.name}
-                    {person.id === member.memberId ? " (you)" : ""}
-                  </span>
-                </div>
-              ))}
+              {group.members.map((person) => {
+                const status = friends.data?.find(
+                  (f) => f.id === person.id,
+                )?.status;
+                return (
+                  <div className="party-person" key={person.id}>
+                    <PixelIcon name="person" size={17} />
+                    <span>
+                      {person.name}
+                      {person.id === member.memberId ? " (you)" : ""}
+                    </span>
+                    {friends.data && person.id !== member.memberId && (
+                      <button
+                        className="text-button"
+                        disabled={status === "friends" || status === "outgoing"}
+                        onClick={() => void befriend(person.id)}
+                      >
+                        {status === "friends"
+                          ? "Friends"
+                          : status === "outgoing"
+                            ? "Request sent"
+                            : status === "incoming"
+                              ? "Accept friend"
+                              : "Add friend"}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
             </div>
             <p className="field-help">
               {group.bossStarted
@@ -149,8 +184,8 @@ export function MatchingScreen({
             <h3>{group ? "Room for another?" : "Suggested partners"}</h3>
             <p className="field-help">
               {member.kind === "class"
-                ? "Matched by shared interests in your class."
-                : "Matched by shared interests and similar study material."}
+                ? "Classmates in your world come first."
+                : "Ranked by your world and how similar your study material is."}
             </p>
             {!view.matches.length && (
               <p className="empty-state">
@@ -164,9 +199,9 @@ export function MatchingScreen({
                 <div>
                   <h4>{match.name}</h4>
                   <p>
-                    {match.shared.length
-                      ? match.shared.join(" · ")
-                      : "A chance to meet someone new"}
+                    {match.theme
+                      ? `${worlds[match.theme].name} world${match.theme === view.member.theme ? " · same as you" : ""}`
+                      : "Hasn't picked a world yet"}
                   </p>
                   {member.kind === "free" && match.topic !== null && (
                     <small>

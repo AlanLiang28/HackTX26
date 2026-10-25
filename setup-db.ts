@@ -90,7 +90,6 @@ await client.query(`
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     class_id UUID NOT NULL REFERENCES classes(id),
     name TEXT NOT NULL,
-    interests TEXT[] NOT NULL DEFAULT '{}',
     theme TEXT,                          -- last world played: 'sports' | 'fantasy'
     ready_at TIMESTAMPTZ,                -- finished phase 1 (reached the boss)
     session_id UUID REFERENCES sessions(id),  -- their group; null until matched
@@ -122,4 +121,29 @@ await client.query(`
 `);
 
 console.log("Tables 'classes', 'class_members', 'class_answers' are ready (with free agents).");
+
+// Friends and chat (friends.ts). token is each player's secret: member ids show up in match lists, tokens never do.
+// A friendship is two `friends` rows, one per direction; a lone row is a request the other player hasn't accepted.
+await client.query(`
+  ALTER TABLE class_members ADD COLUMN IF NOT EXISTS token UUID NOT NULL DEFAULT gen_random_uuid();
+  CREATE TABLE IF NOT EXISTS friends (
+    member_id UUID NOT NULL REFERENCES class_members(id),
+    friend_id UUID NOT NULL REFERENCES class_members(id),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (member_id, friend_id)
+  );
+  -- Hypertable, same reason as boss_attempts.
+  CREATE TABLE IF NOT EXISTS messages (
+    id UUID NOT NULL DEFAULT gen_random_uuid(),
+    from_id UUID NOT NULL,
+    to_id UUID NOT NULL,
+    body TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+`);
+await client.query(
+  "SELECT create_hypertable('messages', by_range('created_at'), if_not_exists => TRUE)"
+);
+
+console.log("Tables 'friends', 'messages' are ready.");
 await client.end();

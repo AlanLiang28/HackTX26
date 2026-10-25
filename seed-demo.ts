@@ -43,31 +43,25 @@ const CLASSES = [
 ];
 // Free agents' own notes, and the worlds they play them in.
 const FREE_NOTES: Record<string, Theme[]> = {
-  cells2: ["sports", "fantasy"], bio: ["fantasy"], photo: ["sports"], algo: ["fantasy"], markets: ["sports"], spanish: ["sports"], hist: ["fantasy"],
+  cells2: ["sports", "fantasy"], bio: ["sports"], photo: ["sports"], algo: ["fantasy"], markets: ["sports"], spanish: ["sports"], hist: ["fantasy"],
 };
 
-type Persona = { name: string; interests: string[]; theme: Theme; state: "ready" | "progress"; notes?: string; team?: string };
-// Hand-placed people for the video. Everyone else is generated.
+type Persona = { name: string; theme: Theme; state: "ready" | "progress"; notes?: string; team?: string };
+// Hand-placed people for the video. Everyone else is generated. Players match on their world.
 const BIO_PERSONAS: Persona[] = [
-  { name: "Jordan Lee", interests: ["basketball", "anime", "cooking"], theme: "sports", state: "ready" },  // match live
-  { name: "Marcus Green", interests: ["basketball", "gaming", "music"], theme: "sports", state: "ready" },
-  { name: "Aiko Tanaka", interests: ["anime", "cooking", "art"], theme: "fantasy", state: "ready" },
-  { name: "Leo Martins", interests: ["anime", "basketball"], theme: "fantasy", state: "progress" },
-  { name: "Zoe Adams", interests: ["music", "art", "photography"], theme: "fantasy", state: "ready", team: "zoe" },
-  { name: "Ethan Wright", interests: ["music", "photography", "dance"], theme: "fantasy", state: "ready", team: "zoe" },
+  { name: "Jordan Lee", theme: "sports", state: "ready" }, // match live: Sports classmates come first
+  { name: "Marcus Green", theme: "sports", state: "ready" },
+  { name: "Aiko Tanaka", theme: "fantasy", state: "ready" },
+  { name: "Leo Martins", theme: "sports", state: "progress" },
+  { name: "Zoe Adams", theme: "fantasy", state: "ready", team: "zoe" },
+  { name: "Ethan Wright", theme: "fantasy", state: "ready", team: "zoe" },
 ];
 const FREE_PERSONAS: Persona[] = [
-  { name: "Sam Rivera", interests: ["basketball", "anime", "cooking"], theme: "sports", state: "ready", notes: "cells2" }, // match live
-  { name: "Mia Chen", interests: ["anime", "cooking", "art"], theme: "fantasy", state: "ready", notes: "bio" }, // same subject, different notes
-  { name: "Noah Kim", interests: ["basketball", "cooking"], theme: "sports", state: "ready", notes: "photo" },
-  { name: "Elena Garcia", interests: ["basketball", "anime", "cooking"], theme: "sports", state: "ready", notes: "spanish" },
-  { name: "Ravi Iyer", interests: ["anime", "gaming"], theme: "fantasy", state: "progress", notes: "algo" },
-];
-const CLUSTERS = [
-  { interests: ["basketball", "soccer", "football", "hiking", "skateboarding"], sports: 0.8 },
-  { interests: ["art", "music", "photography", "dance", "fashion"], sports: 0.4 },
-  { interests: ["anime", "gaming", "chess", "coding", "reading"], sports: 0.2 },
-  { interests: ["cooking", "movies", "music", "k-pop", "travel"], sports: 0.5 },
+  { name: "Sam Rivera", theme: "sports", state: "ready", notes: "cells2" }, // match live
+  { name: "Mia Chen", theme: "sports", state: "ready", notes: "bio" },      // same world, same subject (other notes)
+  { name: "Noah Kim", theme: "sports", state: "ready", notes: "photo" },    // same world, related subject
+  { name: "Elena Garcia", theme: "sports", state: "ready", notes: "spanish" }, // same world, unrelated subject
+  { name: "Ravi Iyer", theme: "fantasy", state: "progress", notes: "algo" },
 ];
 const FIRST = ["Aaliyah", "Aarav", "Abigail", "Adrian", "Amara", "Andre", "Anika", "Ava", "Ben", "Camila", "Carlos", "Chloe", "Daniel", "Diego", "Elijah", "Emma", "Fatima", "Gabriel", "Grace", "Hana", "Hassan", "Isabella", "Isaiah", "Jada", "James", "Jasmine", "Javier", "Kai", "Kayla", "Kenji", "Layla", "Liam", "Lucas", "Maya", "Mateo", "Mei", "Miles", "Nadia", "Naomi", "Nathan", "Nia", "Omar", "Owen", "Paige", "Rafael", "Riley", "Rohan", "Rosa", "Ryan", "Sana", "Sofia", "Tariq", "Tessa", "Theo", "Uma", "Valeria", "Victor", "Wyatt", "Xavier", "Yara", "Yusuf", "Zara", "Zion"];
 const LAST = ["Alvarez", "Bennett", "Brooks", "Castillo", "Coleman", "Diaz", "Edwards", "Fernandez", "Foster", "Gupta", "Hayes", "Hernandez", "Hughes", "Jackson", "Johnson", "Kapoor", "Kowalski", "Lopez", "Martin", "Mendoza", "Morales", "Nguyen", "Ortiz", "Park", "Perez", "Quinn", "Ramirez", "Reed", "Rossi", "Santos", "Singh", "Sullivan", "Thompson", "Torres", "Vasquez", "Walker", "Watson", "Williams", "Wong", "Yamamoto", "Young"];
@@ -105,10 +99,7 @@ function personName() {
   }
 }
 function randomProfile(): Omit<Persona, "state"> {
-  const c = pick(CLUSTERS);
-  const interests = shuffle(c.interests).slice(0, 2);
-  if (rand() < 0.5) interests.push(pick(pick(CLUSTERS).interests));
-  return { name: personName(), interests: [...new Set(interests)], theme: rand() < c.sports ? "sports" : "fantasy" };
+  return { name: personName(), theme: rand() < 0.5 ? "sports" : "fantasy" };
 }
 
 // ---------- Packs (real model, cached) ----------
@@ -130,7 +121,7 @@ async function ensurePacks(specs: { notes: string; theme: Theme; level: string }
 // ---------- Simulations ----------
 type Answer = { subtopic: string; correct: boolean; at: number };
 type Member = {
-  id: string; classId: string | null; name: string; interests: string[]; theme: Theme | null; notes: string;
+  id: string; classId: string | null; name: string; theme: Theme | null; notes: string;
   joinedAt: number; answers: Answer[]; readyAt: number | null; keepFree: boolean;
   embedding: number[] | null; sessionId: string | null; playerId: string | null;
 };
@@ -312,7 +303,7 @@ for (const c of CLASSES) {
       : { answers: [], readyAt: null };
     const persona = personas.includes(p as Persona);
     return {
-      id: uuid(), classId, name: p.name, interests: p.interests, theme: p.state === "new" ? null : p.theme, notes: c.notes,
+      id: uuid(), classId, name: p.name, theme: p.state === "new" ? null : p.theme, notes: c.notes,
       joinedAt, ...played, keepFree: persona, embedding: null, sessionId: null, playerId: null,
     };
   });
@@ -349,7 +340,7 @@ if (!clean) {
     const byNotes = Object.fromEntries(keys.map((k, i) => [k, embeddings![i]]));
     embeddings = freeProfiles.map((p) => byNotes[p.notes]);
   } catch (e) {
-    console.warn("Topic embeddings failed, so free agents will match on interests only:", (e as Error).message);
+    console.warn("Topic embeddings failed, so free agents will match on world only:", (e as Error).message);
   }
 }
 const freeAgents: Member[] = freeProfiles.map((p, i) => {
@@ -357,7 +348,7 @@ const freeAgents: Member[] = freeProfiles.map((p, i) => {
   const joinedAt = now - int(0, 40) * MIN; // settle() slides these back so nothing is in the future
   const played = playPhase1(packs[`${p.notes}:${p.theme}`], p.notes, joinedAt, p.state === "ready");
   return {
-    id: uuid(), classId: null, name: p.name, interests: p.interests, theme: p.theme, notes: p.notes, joinedAt,
+    id: uuid(), classId: null, name: p.name, theme: p.theme, notes: p.notes, joinedAt,
     ...played, keepFree: persona, embedding: embeddings?.[i] ?? null, sessionId: null, playerId: null,
   };
 });
@@ -426,7 +417,7 @@ try {
   await insertMany("sessions", sessionRows);
   await insertMany("players", playerRows);
   await insertMany("class_members", members.map((m) => ({
-    id: m.id, class_id: m.classId, name: m.name, interests: m.interests, theme: m.theme,
+    id: m.id, class_id: m.classId, name: m.name, theme: m.theme,
     ready_at: m.readyAt ? new Date(m.readyAt) : null, session_id: m.sessionId, player_id: m.playerId,
     joined_at: new Date(m.joinedAt),
     pack: m.classId ? null : { ...packs[`${m.notes}:${m.theme}`], demo: true },

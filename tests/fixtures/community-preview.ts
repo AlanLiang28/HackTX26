@@ -26,7 +26,6 @@ const pack: Pack = {
 type Member = {
   id: string;
   name: string;
-  interests: string[];
   theme: "sports" | "fantasy";
   ready: boolean;
   kind: "class" | "free";
@@ -83,7 +82,6 @@ function memberView(member: Member) {
     member: {
       id: member.id,
       name: member.name,
-      interests: member.interests,
       theme: member.theme,
       ready: member.ready,
     },
@@ -95,8 +93,8 @@ function memberView(member: Member) {
             theme: member.theme,
             bossStarted: fight[1].started,
             members: [
-              { id: member.id, name: member.name, interests: member.interests },
-              { id: "peer", name: "Linus", interests: ["anime", "gaming"] },
+              { id: member.id, name: member.name, theme: member.theme },
+              { id: "peer", name: "Linus", theme: member.theme },
             ],
           }
         : null,
@@ -106,10 +104,7 @@ function memberView(member: Member) {
           {
             memberId: "peer",
             name: "Linus",
-            interests: ["anime", "gaming"],
-            shared: member.interests.filter((tag) =>
-              ["anime", "gaming"].includes(tag),
-            ),
+            theme: member.theme,
             topic: member.kind === "free" ? 0.93 : null,
             score: 0.8,
             ready: true,
@@ -118,8 +113,7 @@ function memberView(member: Member) {
           {
             memberId: "waiting",
             name: "Morgan",
-            interests: ["music", "chess"],
-            shared: [],
+            theme: member.theme === "sports" ? "fantasy" : "sports",
             topic: member.kind === "free" ? 0.4 : null,
             score: 0.2,
             ready: false,
@@ -158,7 +152,6 @@ app.get("/api/classes/:code", (req, res) => {
       {
         id: "seed",
         name: "Bo",
-        interests: ["football", "music"],
         theme: "sports",
         ready: true,
         groupCode: null,
@@ -168,7 +161,6 @@ app.get("/api/classes/:code", (req, res) => {
       ...roster.map((m) => ({
         id: m.id,
         name: m.name,
-        interests: m.interests,
         theme: m.theme,
         ready: m.ready,
         groupCode: m.grouped ? "PARTY1" : null,
@@ -197,7 +189,6 @@ app.post("/api/classes/:code/join", (req, res) => {
   members.set(id, {
     id,
     name: req.body.name,
-    interests: req.body.interests,
     theme: "fantasy",
     ready: false,
     kind: "class",
@@ -208,6 +199,7 @@ app.post("/api/classes/:code/join", (req, res) => {
   });
   res.json({
     memberId: id,
+    memberToken: `token-${id}`,
     class: { code: cls.code, name: cls.name, teacherName: cls.teacherName },
   });
 });
@@ -227,7 +219,6 @@ app.post("/api/free-agents", (req, res) => {
   const m: Member = {
     id,
     name: req.body.name,
-    interests: req.body.interests,
     theme: req.body.theme,
     ready: false,
     kind: "free",
@@ -236,7 +227,7 @@ app.post("/api/free-agents", (req, res) => {
     grouped: false,
   };
   members.set(id, m);
-  res.json({ memberId: id, ...makeGame(m) });
+  res.json({ memberId: id, memberToken: `token-${id}`, ...makeGame(m) });
 });
 app.post("/api/free-agents/:id/play", (req, res) => {
   const m = find(req.params.id, res);
@@ -256,6 +247,34 @@ function match(req: express.Request, res: express.Response) {
 }
 app.post("/api/classes/:code/groups", match);
 app.post("/api/free-agents/groups", match);
+// Friends: Linus accepts any request and echoes chat back.
+const friendIds = new Set<string>();
+const chat: { id: string; mine: boolean; body: string; at: string }[] = [];
+const friendsOf = () => ({
+  friends: [...friendIds].map((id) => ({ id, name: "Linus", status: "friends" })),
+});
+app.use("/api/members/:id/friends", (req, res, next) =>
+  req.get("x-member-token") === `token-${req.params.id}`
+    ? next()
+    : fail(res, 403, "Rejoin to see your friends."),
+);
+app.get("/api/members/:id/friends", (_req, res) => res.json(friendsOf()));
+app.post("/api/members/:id/friends", (req, res) => {
+  friendIds.add(req.body.friendId);
+  res.json(friendsOf());
+});
+app.get("/api/members/:id/friends/:friendId/messages", (_req, res) =>
+  res.json({ messages: chat }),
+);
+app.post("/api/members/:id/friends/:friendId/messages", (req, res) => {
+  const at = new Date().toISOString();
+  chat.unshift({ id: `m${chat.length}`, mine: true, body: req.body.body, at });
+  setTimeout(
+    () => chat.unshift({ id: `m${chat.length}`, mine: false, body: `Linus: ${req.body.body}`, at }),
+    1500,
+  );
+  res.json({ messages: chat });
+});
 const concepts = pack.subtopics.slice(0, 2).map((sub) => ({
   name: sub.name,
   analogy: sub.analogy,
