@@ -9,10 +9,16 @@ export function WorldScreen({
   theme,
   onChoose,
   onContinue,
+  busy = false,
+  error = "",
+  context,
 }: {
   theme: Theme;
   onChoose: (theme: Theme) => void;
   onContinue: () => void;
+  busy?: boolean;
+  error?: string;
+  context?: string;
 }) {
   return (
     <>
@@ -22,6 +28,7 @@ export function WorldScreen({
           <br />
           <span>starts with your world.</span>
         </h1>
+        {context && <p>{context}</p>}
       </div>
       <div className="world-picker">
         {(["sports", "fantasy"] as Theme[]).map((option) => (
@@ -30,6 +37,7 @@ export function WorldScreen({
             key={option}
             aria-pressed={theme === option}
             onClick={() => onChoose(option)}
+            disabled={busy}
           >
             <span className={`world-card-art art-${option}`}>
               <span className="world-card-location">
@@ -61,11 +69,16 @@ export function WorldScreen({
         ))}
       </div>
       <div className="world-next">
-        <button className="primary-button" onClick={onContinue}>
-          Enter {worlds[theme].name}
+        <button className="primary-button" onClick={onContinue} disabled={busy}>
+          {busy ? "Preparing your lesson…" : `Enter ${worlds[theme].name}`}
           <PixelIcon name="arrow" size={18} />
         </button>
       </div>
+      {error && (
+        <p className="error-feedback" role="alert">
+          {error}
+        </p>
+      )}
     </>
   );
 }
@@ -224,7 +237,7 @@ export function MaterialsScreen({
           <span>{worlds[theme].name} world</span>
           <span className="summary-separator">·</span>
           <PixelIcon name="person" size={15} />
-          <span>Single player</span>
+          <span>Solo round</span>
         </div>
         <button
           className="primary-button full-width"
@@ -256,7 +269,7 @@ export function MaterialsScreen({
         onClick={onBack}
       >
         <PixelIcon name="arrowLeft" size={15} />
-        Choose a different world
+        Back to my profile
       </button>
     </>
   );

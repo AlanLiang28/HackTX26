@@ -6,7 +6,7 @@ export default defineConfig({
   server: {
     // Send any request starting with /api to the Express server
     proxy: {
-      "/api": "http://localhost:3001",
+      "/api": process.env.STUDYRAID_API_TARGET ?? "http://localhost:3001",
     },
   },
 });

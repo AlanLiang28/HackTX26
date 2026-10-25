@@ -2,12 +2,12 @@
 // so switching models or providers later means editing only this file.
 //
 // .env:
-//   MODEL_API_KEY=...        (META_API_KEY also works)
+//   MODEL_API_KEY=...        (META_API_KEY or MUSE_API also work)
 //   MUSE_MODEL=muse-spark-1.3   (optional; try muse-spark-1.1 if 1.3 isn't recognized)
 //   META_API_BASE=...           (optional; defaults to https://api.meta.ai/v1)
 
 // Env is read lazily: ESM hoists imports, so process.loadEnvFile() in server.ts runs after this file loads.
-const apiKey = () => process.env.MODEL_API_KEY ?? process.env.META_API_KEY;
+const apiKey = () => process.env.MODEL_API_KEY ?? process.env.META_API_KEY ?? process.env.MUSE_API; // MUSE_API is what coach.ts uses
 const baseUrl = () => (process.env.META_API_BASE ?? "https://api.meta.ai/v1").replace(/\/$/, "");
 export const modelName = () => process.env.MUSE_MODEL ?? "muse-spark-1.3";
 

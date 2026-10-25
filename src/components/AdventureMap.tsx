@@ -13,6 +13,7 @@ export function AdventureMap({
   busy = false,
   error = "",
   outcomes,
+  partyBoss = false,
 }: {
   theme: Theme;
   session: StudySession;
@@ -23,6 +24,7 @@ export function AdventureMap({
   busy?: boolean;
   error?: string;
   outcomes?: boolean[];
+  partyBoss?: boolean;
 }) {
   const total = session.content.quiz.length;
   const next = getCharacter(theme, completed, completed === total);
@@ -100,7 +102,11 @@ export function AdventureMap({
                   <button
                     className="trail-enter"
                     onClick={() => onEnter(index)}
-                    aria-label={`Meet ${character.name}`}
+                    aria-label={
+                      boss && partyBoss
+                        ? "Find a study party"
+                        : `Meet ${character.name}`
+                    }
                     disabled={busy}
                   >
                     <PixelIcon name="arrow" size={20} />
@@ -123,11 +129,13 @@ export function AdventureMap({
           disabled={busy}
           onClick={() => onEnter(completed)}
         >
-          {busy
-            ? "Preparing encounter…"
-            : completed === 0
-              ? `Meet ${next.name}`
-              : `Continue to ${next.name}`}
+          {completed === total && partyBoss
+            ? "Find a study party"
+            : busy
+              ? "Preparing encounter…"
+              : completed === 0
+                ? `Meet ${next.name}`
+                : `Continue to ${next.name}`}
           <PixelIcon name={completed === total ? "crown" : "arrow"} size={18} />
         </button>
         {error && (

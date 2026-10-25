@@ -103,12 +103,21 @@ async function post(
   const data: unknown = await response.json().catch(() => null);
   if (!response.ok)
     throw new Error(
-      record(data) && typeof data.error === "string"
-        ? data.error
-        : "Could not connect to the game. Please try again.",
+      record(data) && typeof data.message === "string"
+        ? data.message
+        : record(data) && typeof data.error === "string"
+          ? data.error
+          : "Could not connect to the game. Please try again.",
     );
   return data;
 }
+// Shared with CoachVoice so the voice coach matches the game's analogies.
+export function interestFor(theme: Theme) {
+  return theme === "sports"
+    ? "American football"
+    : "fantasy adventures, knights, and dragons";
+}
+
 export async function startAdaptiveGame(
   notes: string,
   theme: Theme,
@@ -118,15 +127,15 @@ export async function startAdaptiveGame(
     "/api/game/start",
     {
       material: notes,
-      interest:
-        theme === "sports"
-          ? "American football"
-          : "fantasy adventures, knights, and dragons",
+      interest: interestFor(theme),
       level: "high school",
       playerName: "You",
     },
     signal,
   );
+  return parseAdaptiveGame(data);
+}
+export function parseAdaptiveGame(data: unknown): AdaptiveGame {
   if (
     !record(data) ||
     typeof data.gameId !== "string" ||

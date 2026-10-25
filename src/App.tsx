@@ -6,26 +6,78 @@ import { WorldScreen, MaterialsScreen } from "./components/SetupScreens";
 import { AdventureMap } from "./components/AdventureMap";
 import { Encounter } from "./components/Encounter";
 import { Modal } from "./components/Modal";
-import { getDemoSession, readQuestLog, saveQuest } from "./lib/study";
+import { StartScreen, ProfileScreen } from "./components/CommunityScreens";
+import { TeacherDesk } from "./components/TeacherDesk";
+import { MatchingScreen } from "./components/MatchingScreen";
+import { PartyBoss } from "./components/PartyBoss";
+import type { TeamResult } from "./components/PartyBoss";
+import {
+  getMember,
+  joinClass,
+  playMember,
+  readMember,
+  recall,
+  remember,
+  startFreeAgent,
+} from "./lib/classroom";
+import type { Group, MemberContext, Profile } from "./lib/classroom";
+import CoachVoice from "./CoachVoice";
+import {
+  getDemoSession,
+  isStudySession,
+  readQuestLog,
+  saveQuest,
+} from "./lib/study";
 import { getCharacter, worlds } from "./lib/characters";
 import type { QuestRecord, StudySession, Theme } from "./lib/study";
 import "./App.css";
+import "./community.css";
 import {
   adaptiveStudySession,
-  startAdaptiveGame,
   nextAdaptiveEncounter,
   gradeAdaptiveAnswer,
   restartAdaptiveGame,
+  interestFor,
+  parseAdaptiveGame,
 } from "./lib/adaptive";
 import type { AdaptiveGame, RemoteEncounter } from "./lib/adaptive";
 
-type Screen = "world" | "materials" | "journey" | "battle" | "results";
+type Screen =
+  | "start"
+  | "profile"
+  | "join"
+  | "teacher"
+  | "matching"
+  | "party-boss"
+  | "world"
+  | "materials"
+  | "journey"
+  | "battle"
+  | "results";
 type Overlay = "help" | "history" | "notes" | "home" | null;
-const setupScreens: Screen[] = ["world", "materials"];
-const navSteps = ["Your world", "Your notes", "Your adventure"];
+const setupScreens: Screen[] = [
+  "start",
+  "profile",
+  "join",
+  "teacher",
+  "world",
+  "materials",
+];
+const navSteps = ["Setup", "Solo round", "Final meeting"];
 
 export default function App() {
-  const [screen, setScreen] = useState<Screen>("world");
+  const [screen, setScreen] = useState<Screen>("start");
+  const [mode, setMode] = useState<"free" | "class">("free");
+  const [profile, setProfile] = useState<Profile>(() => {
+    const value = recall<Profile>("profile", { name: "", interests: [] });
+    return typeof value.name === "string" && Array.isArray(value.interests)
+      ? value
+      : { name: "", interests: [] };
+  });
+  const [member, setMember] = useState<MemberContext | null>(null);
+  const [savedMember, setSavedMember] = useState(readMember);
+  const [group, setGroup] = useState<Group | null>(null);
+  const [teamResult, setTeamResult] = useState<TeamResult | null>(null);
   const [theme, setTheme] = useState<Theme>("fantasy");
   const [notes, setNotes] = useState("");
   const [filename, setFilename] = useState("");
@@ -49,13 +101,27 @@ export default function App() {
   const request = useRef<AbortController | null>(null);
   const saved = useRef(false);
   const main = useRef<HTMLElement>(null);
-  const activeStep = screen === "world" ? 0 : screen === "materials" ? 1 : 2;
+  const activeStep = setupScreens.includes(screen)
+    ? 0
+    : screen === "journey" || screen === "battle"
+      ? 1
+      : 2;
+  const inCombat = screen === "battle" || screen === "party-boss";
   const correct = adaptive
     ? adaptive.state.defeated
     : (session?.content.quiz.filter(
         (question, index) => answers[index] === question.answer,
       ).length ?? 0);
   const failed = adaptive?.state.phase === "game_over";
+  useEffect(() => {
+    if (member && session && adaptive?.state.phase === "boss_ready")
+      remember("ready-quest", {
+        memberId: member.memberId,
+        session,
+        game: adaptive,
+        answers,
+      });
+  }, [member, session, adaptive, answers]);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "instant" });
@@ -93,7 +159,11 @@ export default function App() {
     }
   }
   function beginSession(next: StudySession, isDemo: boolean) {
-    if (isDemo) setAdaptive(null);
+    if (isDemo) {
+      setAdaptive(null);
+      setMember(null);
+    }
+    setTeamResult(null);
     setRemoteEncounter(null);
     setGameError("");
     setSession(next);
@@ -109,8 +179,105 @@ export default function App() {
   }
   function goHome() {
     setOverlay(null);
-    setScreen("world");
+    setScreen("start");
     setError("");
+  }
+  function rememberMember(next: MemberContext) {
+    setMember(next);
+    setSavedMember(next);
+    remember("member", next);
+  }
+  async function prepare(action: (signal: AbortSignal) => Promise<void>) {
+    if (loading) return;
+    setLoading(true);
+    setError("");
+    const controller = new AbortController();
+    request.current = controller;
+    const timeout = window.setTimeout(() => controller.abort(), 90000);
+    try {
+      await action(controller.signal);
+    } catch (err) {
+      setError(
+        err instanceof Error && err.name === "AbortError"
+          ? "This is taking longer than expected. Please try again."
+          : err instanceof Error
+            ? err.message
+            : "Could not connect. Please try again.",
+      );
+    } finally {
+      clearTimeout(timeout);
+      request.current = null;
+      setLoading(false);
+    }
+  }
+  async function loadMemberGame(
+    next: MemberContext,
+    targetTheme: Theme,
+    signal: AbortSignal,
+  ) {
+    const game = await playMember(next, targetTheme, signal);
+    rememberMember({ ...next, theme: targetTheme });
+    setAdaptive(game);
+    beginSession(
+      adaptiveStudySession(game, next.class?.name ?? notes, targetTheme),
+      false,
+    );
+  }
+  function submitProfile(next: Profile, code: string) {
+    setProfile(next);
+    remember("profile", next);
+    if (mode === "free") {
+      setScreen("materials");
+      return;
+    }
+    void prepare(async (signal) => {
+      const joined = await joinClass(code, next, theme, signal);
+      rememberMember(joined);
+      setScreen("world");
+    });
+  }
+  function resumeMember() {
+    if (!savedMember) return;
+    void prepare(async (signal) => {
+      const view = await getMember(savedMember, signal);
+      setMode(savedMember.kind);
+      setTheme(savedMember.theme);
+      rememberMember(savedMember);
+      if (view.member.ready) {
+        if (member?.memberId !== savedMember.memberId || !session) {
+          setSession(null);
+          const cached = recall<{
+            memberId: string;
+            session: unknown;
+            game: unknown;
+            answers: Record<number, number>;
+          } | null>("ready-quest", null);
+          if (
+            cached?.memberId === savedMember.memberId &&
+            isStudySession(cached.session)
+          ) {
+            try {
+              const game = parseAdaptiveGame(cached.game);
+              if (game.state.phase === "boss_ready") {
+                setSession(cached.session);
+                setAdaptive(game);
+                setAnswers(cached.answers ?? {});
+                setCompleted(game.state.completed);
+              }
+            } catch {
+              /* A stale cache must not block the party. */
+            }
+          }
+        }
+        setScreen("matching");
+      } else if (
+        member?.memberId === savedMember.memberId &&
+        session &&
+        adaptive?.state.phase === "battle"
+      )
+        setScreen("journey");
+      else await loadMemberGame(savedMember, savedMember.theme, signal);
+    });
   }
 
   async function loadFile(file: File) {
@@ -146,32 +313,12 @@ export default function App() {
   async function createQuest(event: FormEvent) {
     event.preventDefault();
     if (loading || !notes.trim()) return;
-    setError("");
-    setLoading(true);
-    const controller = new AbortController();
-    request.current = controller;
-    const timeout = window.setTimeout(() => controller.abort(), 60000);
-    try {
-      const game = await startAdaptiveGame(
-        notes.trim(),
-        theme,
-        controller.signal,
-      );
-      setAdaptive(game);
-      beginSession(adaptiveStudySession(game, notes.trim(), theme), false);
-    } catch (err) {
-      setError(
-        err instanceof Error && err.name === "AbortError"
-          ? "This is taking longer than expected. Try again, or explore the demo."
-          : err instanceof Error
-            ? err.message
-            : "Could not connect. Try again, or explore the demo.",
-      );
-    } finally {
-      window.clearTimeout(timeout);
-      request.current = null;
-      setLoading(false);
-    }
+    void prepare(async (signal) => {
+      const next = await startFreeAgent(profile, notes.trim(), theme, signal);
+      rememberMember(next.member);
+      setAdaptive(next.game);
+      beginSession(adaptiveStudySession(next.game, notes.trim(), theme), false);
+    });
   }
   async function enterEncounter(index: number) {
     if (
@@ -183,6 +330,10 @@ export default function App() {
       return;
     if (adaptive && adaptive.state.phase === "game_over") {
       setScreen("results");
+      return;
+    }
+    if (member && index === session.content.quiz.length) {
+      setScreen("matching");
       return;
     }
     if (adaptive && index < session.content.quiz.length) {
@@ -301,17 +452,28 @@ export default function App() {
         : previous,
     );
   }
-  function finishQuest() {
-    if (!session || saved.current) return;
+  function finishQuest(team?: TeamResult) {
+    if (!session) {
+      goHome();
+      return;
+    }
+    if (saved.current) {
+      goHome();
+      return;
+    }
+    setTeamResult(team ?? null);
     saved.current = true;
     const record: QuestRecord = {
-      id: crypto.randomUUID(),
+      id:
+        team && group && member
+          ? `boss-${group.code}-${member.memberId}`
+          : crypto.randomUUID(),
       title: session.content.title || `${worlds[theme].name} demo`,
       theme,
       score: correct,
       total: session.content.quiz.length,
       completedAt: new Date().toISOString(),
-      players: 1,
+      players: team?.players ?? 1,
       demo,
     };
     setLog(saveQuest(record));
@@ -321,9 +483,7 @@ export default function App() {
   }
 
   return (
-    <div
-      className={`app theme-${theme} ${screen === "battle" ? "in-combat" : ""}`}
-    >
+    <div className={`app theme-${theme} ${inCombat ? "in-combat" : ""}`}>
       <div className="world-background" aria-hidden="true" />
       <div className="world-wash" aria-hidden="true" />
       <div className="ambient-pixels" aria-hidden="true">
@@ -351,7 +511,7 @@ export default function App() {
             <span className="brand-period">.</span>
           </span>
         </button>
-        {screen !== "battle" && (
+        {!inCombat && screen !== "start" && screen !== "teacher" && (
           <nav className="step-nav" aria-label="Adventure progress">
             {navSteps.map((step, index) => (
               <span
@@ -373,7 +533,7 @@ export default function App() {
           </nav>
         )}
         <div className="header-actions">
-          {screen !== "battle" && (
+          {!inCombat && (
             <button
               className="text-button how-button"
               aria-label="How to play"
@@ -394,7 +554,7 @@ export default function App() {
           >
             <PixelIcon name={sound ? "sound" : "mute"} size={19} />
           </button>
-          {screen !== "battle" && (
+          {!inCombat && (
             <button
               className="icon-button"
               aria-label="Open quest log"
@@ -411,6 +571,73 @@ export default function App() {
         tabIndex={-1}
         className={`main-content screen-${screen}`}
       >
+        {screen === "start" && (
+          <StartScreen
+            saved={savedMember}
+            busy={loading}
+            error={error}
+            onResume={resumeMember}
+            onSelect={(choice) => {
+              setError("");
+              setMember(null);
+              setGroup(null);
+              setDemo(false);
+              setSession(null);
+              setAdaptive(null);
+              if (choice === "teacher") setScreen("teacher");
+              else {
+                setMode(choice);
+                setScreen(choice === "class" ? "join" : "world");
+              }
+            }}
+          />
+        )}
+        {(screen === "profile" || screen === "join") && (
+          <ProfileScreen
+            key={screen}
+            initial={profile}
+            joining={screen === "join"}
+            busy={loading}
+            error={error}
+            onSubmit={submitProfile}
+            onBack={() => {
+              setError("");
+              setScreen(screen === "join" ? "start" : "world");
+            }}
+          />
+        )}
+        {screen === "teacher" && <TeacherDesk onBusy={setGameBusy} />}
+        {screen === "matching" && member && (
+          <MatchingScreen
+            key={member.memberId}
+            member={member}
+            soloComplete={adaptive?.state.phase === "boss_ready"}
+            onBoss={(next) => {
+              setGroup(next);
+              setTheme(next.theme);
+              setScreen("party-boss");
+            }}
+            onStudy={() => {
+              if (session && adaptive && adaptive.state.phase !== "game_over")
+                setScreen("journey");
+              else
+                void prepare((signal) =>
+                  loadMemberGame(member, member.theme, signal),
+                );
+            }}
+          />
+        )}
+        {screen === "party-boss" && group && (
+          <PartyBoss
+            key={group.code}
+            group={group}
+            theme={theme}
+            onBusy={setGameBusy}
+            onNotes={session ? () => setOverlay("notes") : undefined}
+            onBack={() => setScreen("matching")}
+            onComplete={finishQuest}
+          />
+        )}
         {screen === "world" && (
           <WorldScreen
             theme={theme}
@@ -419,9 +646,20 @@ export default function App() {
               chime();
             }}
             onContinue={() => {
-              setScreen("materials");
-              chime();
+              if (mode === "class" && member)
+                void prepare((signal) => loadMemberGame(member, theme, signal));
+              else {
+                setScreen("profile");
+                chime();
+              }
             }}
+            busy={loading}
+            error={error}
+            context={
+              member?.kind === "class"
+                ? `${member.class!.name} · ${member.class!.teacherName}`
+                : undefined
+            }
           />
         )}
         {screen === "materials" && (
@@ -439,7 +677,7 @@ export default function App() {
             onFile={loadFile}
             onSubmit={createQuest}
             onDemo={() => beginSession(getDemoSession(theme), true)}
-            onBack={() => setScreen("world")}
+            onBack={() => setScreen("profile")}
           />
         )}
         {screen === "journey" && session && (
@@ -453,6 +691,7 @@ export default function App() {
             busy={gameBusy}
             error={gameError}
             outcomes={adaptive?.state.trail}
+            partyBoss={!!member}
           />
         )}
         {screen === "battle" && session && (
@@ -484,7 +723,7 @@ export default function App() {
               setScreen("journey");
             }}
             onNotes={() => setOverlay("notes")}
-            onFinish={finishQuest}
+            onFinish={() => finishQuest()}
           />
         )}
         {screen === "results" && session && (
@@ -556,7 +795,11 @@ export default function App() {
                     <PixelIcon name={failed ? "book" : "check"} size={28} />
                   </strong>
                   <span>
-                    {failed ? "Ready to review" : "Explanation practiced"}
+                    {failed
+                      ? "Ready to review"
+                      : teamResult
+                        ? "Boss defeated"
+                        : "Explanation practiced"}
                   </span>
                 </div>
               </div>
@@ -585,9 +828,11 @@ export default function App() {
                 </div>
               )}
               <p className="practice-note">
-                {failed
-                  ? `Focus next on ${adaptive?.state.weakest?.name ?? "the concepts you missed"}.`
-                  : "Boss explanation completed with self-assessment."}
+                {teamResult
+                  ? `Every party member passed every key concept. Team understanding: ${Math.round(teamResult.teamAverage * 100)}%.`
+                  : failed
+                    ? `Focus next on ${adaptive?.state.weakest?.name ?? "the concepts you missed"}.`
+                    : "Boss explanation completed with self-assessment."}
               </p>
               <div className="results-actions">
                 <button
@@ -624,7 +869,13 @@ export default function App() {
           <span className="location-dot" />
           {worlds[theme].location}
         </span>
-        <span>SINGLE PLAYER · V0.2</span>
+        <span>
+          {screen === "teacher"
+            ? "TEACHER DESK"
+            : demo && session
+              ? "SINGLE PLAYER · DEMO"
+              : "SOLO STUDY · PARTY BOSS"}
+        </span>
       </footer>
 
       {overlay === "help" && (
@@ -633,8 +884,7 @@ export default function App() {
           onClose={() => setOverlay(null)}
         >
           <p className="modal-description">
-            A single-player adventure. The characters are your teachers—and your
-            opponents.
+            Learn solo. Find your party. Explain what you know together.
           </p>
           <ol className="help-steps">
             <li>
@@ -642,8 +892,8 @@ export default function App() {
               <div>
                 <strong>Choose a world. Bring your notes.</strong>
                 <p>
-                  Pick Sports or Fantasy, then upload TXT/Markdown or paste your
-                  study material on the next screen.
+                  Bring your own notes or join with a class code. Pick Sports or
+                  Fantasy and choose a few interests to find study partners.
                 </p>
               </div>
             </li>
@@ -665,9 +915,9 @@ export default function App() {
               <div>
                 <strong>Teach the final boss.</strong>
                 <p>
-                  Speak or type your explanation, then check it against your
-                  notes. This practice boss uses self-assessment while AI
-                  grading is being connected.
+                  After your solo round, form a party. Take turns speaking or
+                  typing explanations. Everyone must pass every key concept. The
+                  offline demo uses self-assessment.
                 </p>
               </div>
             </li>
@@ -690,6 +940,14 @@ export default function App() {
             <p className="modal-description">{session.content.title}</p>
           )}
           <p className="book-overview">{session.content.overview}</p>
+          <CoachVoice
+            topic={
+              session.content.title ||
+              session.content.mappings.map((item) => item.concept).join(", ")
+            }
+            interest={interestFor(theme)}
+            facts={session.content.mappings.map((item) => item.explanation)}
+          />
           <div className="book-concepts">
             {session.content.mappings.map((mapping, index) => (
               <details key={index}>
@@ -754,6 +1012,9 @@ export default function App() {
                           { month: "short", day: "numeric" },
                         )}
                         {record.demo ? " · Demo" : ""}
+                        {record.players > 1
+                          ? ` · ${record.players} players`
+                          : ""}
                       </small>
                     </div>
                     <PixelIcon name="check" size={16} />
@@ -771,12 +1032,11 @@ export default function App() {
         </Modal>
       )}
       {overlay === "home" && (
-        <Modal
-          title="Start a new adventure?"
-          onClose={() => setOverlay(null)}
-        >
+        <Modal title="Back to home?" onClose={() => setOverlay(null)}>
           <p className="modal-description">
-            Your current adventure will reset. Your study notes will stay here.
+            {member
+              ? "Your class and party stay saved. You can continue studying or start a new adventure."
+              : "Your study notes will stay here. You can continue studying or start a new adventure."}
           </p>
           <div className="modal-actions">
             <button
@@ -785,11 +1045,8 @@ export default function App() {
             >
               Keep adventuring
             </button>
-            <button
-              className="primary-button"
-              onClick={goHome}
-            >
-              Back to camp
+            <button className="primary-button" onClick={goHome}>
+              Back to home
               <PixelIcon name="arrow" size={16} />
             </button>
           </div>

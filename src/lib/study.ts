@@ -185,7 +185,10 @@ export function readQuestLog(): QuestRecord[] {
   }
 }
 export function saveQuest(record: QuestRecord): QuestRecord[] {
-  const updated = [record, ...readQuestLog()].slice(0, 30);
+  const updated = [
+    record,
+    ...readQuestLog().filter((previous) => previous.id !== record.id),
+  ].slice(0, 30);
   try {
     localStorage.setItem("studyraid-quests", JSON.stringify(updated));
   } catch {

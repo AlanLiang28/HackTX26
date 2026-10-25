@@ -1,72 +1,80 @@
 # StudyRaid
 
-A single-player pixel-art study adventure built with React, TypeScript, and Vite. Choose one of two fixed worlds: **Sports** or **Fantasy**. Original characters teach concepts through dialogue, then challenge you to answer questions. The final boss asks you to explain the material yourself.
+A pixel-art study adventure built with React, TypeScript, Vite, and Express. Study your own notes or join a classroom, learn through one of two fixed worlds (**Sports** and **Fantasy**), then explain the concepts with a small party.
 
-## Run the frontend
+## Run locally
 
 ```sh
 npm install
 npm run dev
 ```
 
-Open the local URL printed by Vite. **Try a demo adventure** runs the complete experience without a backend or API keys.
-
-For adaptive adventures from your own notes, also start the backend in another terminal:
+Start the backend in another terminal:
 
 ```sh
 npx tsx watch server.ts
 ```
 
-The backend requires the existing environment configuration and database setup. Set `MODEL_API_KEY` (or `META_API_KEY`) for Meta Muse. `MUSE_MODEL` and `META_API_BASE` are optional overrides. Vite proxies `/api` requests to `http://localhost:3001`. Keep credentials in your local environment.
+Vite forwards `/api` to `http://localhost:3001`. `STUDYRAID_API_TARGET` can override that target for an isolated test server. The backend can also serve `dist/` after `npm run build`.
+
+The backend reads local environment configuration. Keep credentials out of frontend code:
+
+- `DATABASE_URL`: Tiger Data/Postgres connection.
+- `MODEL_API_KEY` or `META_API_KEY`: Muse game-pack generation. The boss grader uses `META_API_KEY` when present, otherwise Gemini.
+- `GEMINI_API_KEY`: subject embeddings, Gemini transcription/grading fallback, and coach audio.
+- `MUSE_API`: the voice coach's Muse script generation, as implemented in `coach.ts`.
+- Optional model overrides are documented in `llm.ts`, `boss.ts`, and `coach.ts`.
+
+For the new class, group, and boss tables, run `npx tsx setup-db.ts` against the intended development database. The script is idempotent and enables pgvector. This frontend integration does not run migrations or seed a connected database automatically.
 
 ## Frontend flow
 
-1. **Your world:** a dedicated screen for choosing Sports or Fantasy, with artwork and a preview of the characters.
-2. **Your notes:** a separate screen for uploading TXT/Markdown or pasting up to 20,000 characters. The demo works without the backend.
-3. **Adventure trail:** meet each opponent in order, then unlock the boss. Cleared encounters stay cleared when you leave a conversation.
-4. **Character encounters:** read the character's typewriter lesson, then choose an answer directly. Live quests have six encounters and three lives. Each answer updates topic proficiency, and missed concepts get priority in the next questions. Coaching explains the answer before you continue. Three misses end the run with a review and restart option. The offline demo keeps its original three questions, 4 HP penalty, and retries. The small encounter menu contains lesson review, notes, and returning to the trail.
-5. **Boss:** the live boss focuses on your weakest tested concept. Speak or type an explanation, review it, and complete an explicit self-assessment. Opening notes does not erase the explanation.
-6. **Victory:** see your first-attempt score, characters met, and questions worth reviewing. Play again or start a new adventure. Completed quests are saved on this device.
+The home screen has three entry points, all using the same paper panels, local pixel sprites, and minimal controls:
 
-Multiplayer is deferred. There are no party, team, or room controls in the current interface.
+1. **Bring my notes.** Choose Sports or Fantasy, add a name and preset interest chips, then upload TXT/Markdown or paste up to 20,000 characters. This starts an independent student through `/api/free-agents`. Interest tags are for matching; users cannot enter custom worlds.
+2. **Join a class.** Enter the teacher's six-character code, a name, and interests. Choose a world and start the class lesson. Students share the class's cached world packs and do not need to supply notes.
+3. **Teacher desk.** Create a class in two steps: class details, then study material. Save the private teacher key when it is first shown. The browser remembers classroom access; another device can open the dashboard with the class code and teacher key. The dashboard shows students, readiness, parties, and topics that need review.
 
-## Character art
+Student adventures retain a **vertical foes list** and the existing character dialogue. Live solo rounds have six encounters and three lives. Missed concepts receive priority in later questions. Every class/free-agent answer is logged by the backend.
 
-The project uses its existing SVG pixel-grid art system, with deliberately simple original characters. Each theme has three distinct question opponents plus a boss:
+After the solo round, **Find a study party** opens matching. Classmates are ranked by shared interests; independent students also use subject similarity. Players who are still studying are disabled. A selection immediately creates or joins a party of two to four students. Matching refreshes about every three seconds, including when another student adds you to a party.
 
-- **Fantasy:** Mossby the slime, Sir Clanks the knight, Wisp the mage, Professor Ember the dragon.
-- **Sports:** Rookie Reed, Coach Dash, Coach Cross, Coach Stone.
+**The shared boss** uses the group's weakest concepts. Starting closes the roster. Each player takes their turn speaking or typing an explanation; the server owns the turn, rubric, feedback, pass/fail, and victory. A failed attempt shows feedback and permits a retry. Everyone must pass every required concept and the team average must clear the server's threshold. The screen refreshes about every 1.5 seconds. Foes have no resolve or HP bars; party progress is available in a compact disclosure.
 
-Character art is in `src/components/PixelSprite.tsx`; personalities and lesson assignment are in `src/lib/characters.ts`. Characters retain their colors during battles, alongside crisp square pixels, monochrome dialogue boxes, heart cursors, and a minimal contextual interface. No external character image requests are needed.
+Voice recordings stop after 90 seconds, are converted to 16 kHz mono PCM WAV with `src/lib/wav.ts`, and go to the boss audio endpoint. Recording requires browser microphone permission and a supported secure context. Typed explanations work without a microphone. Browser recordings and microphone tracks are cleaned up when leaving the screen.
 
-## Backend handoff
+**Hear this lesson** in the notes panel requests the existing voice coach. It uses the selected world's analogies and the lesson's actual facts. A readable transcript and browser speech fallback remain available when generated audio is unavailable.
 
-The existing frontend now uses Joshua's `game-routes.ts` API through `src/lib/adaptive.ts`. The Sports/Fantasy choice supplies the preset theme; users cannot enter custom themes. The older `POST /api/explain`, history, and stats endpoints remain available. Joshua's standalone `Game.tsx` is retained as source but is not mounted in this frontend.
+## Offline demo and saved progress
 
-- `POST /api/game/start` builds the lessons and question bank with one Muse call (malformed model output may trigger one retry). Only lessons and game metadata reach the browser initially.
-- `POST /api/game/:gameId/next` selects an unanswered question using smoothed proficiency `(correct + 1) / (attempts + 2)`. Weaker topics take priority, ties favor fewer attempts, and fresh questions are exhausted before repeats. Reopening an unanswered encounter returns the same question.
-- `POST /api/game/:gameId/answer` grades on the server, records topic performance, and returns the answer explanation. The frontend includes the question ID so retrying a failed network request does not deduct another life.
-- `POST /api/game/:gameId/restart` resets the run using the same pack, without another model call.
+The notes screen's **Try a demo adventure** works without a backend, API keys, or database. It keeps three local questions, retries, and an explicitly self-assessed practice boss. It does not create a class or party, and its old themed Momentum titles are omitted.
 
-Games are held in server memory, with stale games cleaned up when another game starts (three-hour threshold). Server restarts discard active runs. Quest history in this frontend remains local to the device.
+Profiles, student identities, teacher access keys, completed quests, and a completed solo-round recap are saved on this device when browser storage permits. **Continue as…** restores matching for ready students, and an open solo round can be continued while the page remains open. After a reload or server restart, an unfinished solo round restarts from the stored backend pack through `/play`; the server does not offer an in-progress snapshot endpoint. Groups and boss results remain on the backend. Reopening a completed party updates its quest-log entry rather than duplicating it.
 
-Backend-owned work still needed:
+## Contracts and implementation
 
-- AI assessment of boss explanations and follow-up questions. The current boss is explicitly labeled **practice / self-assessed**.
-- Multiplayer, including rooms and synchronization, is deferred to a later version.
-- PDF and slide extraction. Currently users can paste text from those formats or upload TXT/Markdown.
+- [Classes, free agents, and matching](docs/classes.md)
+- [Shared boss fight](docs/part3-boss-fight.md)
+- `src/lib/classroom.ts`: class, independent student, dashboard, identity storage, and matching clients.
+- `src/lib/party.ts`: boss polling, start, text, and WAV submission clients.
+- `src/lib/adaptive.ts`: the shared solo-game client and response validation.
+- `src/lib/usePolling.ts`: serial polling with cancellation on navigation and pauses in hidden tabs.
 
-Speech recognition availability depends on the browser and microphone permission. Typed explanations always work. The frontend does not upload or store audio.
+Game packs and answer keys remain server-owned. Lessons reach the browser when a round starts; a question's answer key is returned only after grading. Incorrect network retries are not counted as extra answers.
 
-## Build
+Authentication, leaving a party, and shared mob fights are outside the backend contract. The frontend does not add those actions. Joshua's standalone `Game.tsx` remains as source but is not mounted.
+
+## Checks
 
 ```sh
 npm run build
 npm test
 ```
 
-The build checks frontend TypeScript and produces `dist/`, which Express can serve. Tests exercise the actual game routes with deterministic model output, including performance-based selection, answer-key privacy, request retries, game-over, boss readiness, and restart. Tests do not call Meta or require real credentials or a database.
+The build checks frontend TypeScript and produces `dist/`. Tests cover adaptive selection, request retries, backend boss rules, interest/subject matching, frontend API contracts, human-readable errors, teacher headers, WAV/text body formats, and quest-log deduplication. They do not need real credentials or a database.
 
-## Artwork and fonts
+For browser QA without external services, `node --import tsx tests/fixtures/community-preview.ts` starts an isolated API on port 3101, using the real adaptive routes and boss state calculation with deterministic fixture data. Point a separate Vite preview at it with `STUDYRAID_API_TARGET=http://127.0.0.1:3101`. That server is a test fixture and is never imported by the production app.
 
-Original backgrounds and their exact generation prompts are in `public/images/`. Fonts are self-hosted in `public/fonts/` with their SIL Open Font Licenses. Icons and character sprites are local SVG components. The UI respects reduced-motion preferences and supports keyboard navigation.
+## Art and accessibility
+
+Full-page pixel backgrounds, their prompts, and portrait battle variants are in `public/images/`. Character art is in `src/components/PixelSprite.tsx`, and personalities are in `src/lib/characters.ts`. Fonts are self-hosted in `public/fonts/` with their SIL Open Font Licenses. The interface supports keyboard focus, reduced motion, narrow screens, and immediate return from encounters to the trail.

@@ -52,7 +52,8 @@ button:disabled {
 button:focus-visible,
 summary:focus-visible,
 input:focus-visible,
-textarea:focus-visible {
+textarea:focus-visible,
+select:focus-visible {
   outline: 3px solid #b77a3b;
   outline-offset: 4px;
 }
