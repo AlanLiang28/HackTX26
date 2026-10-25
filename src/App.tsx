@@ -73,36 +73,80 @@ const linkCode =
   /^\/([a-z0-9]{6})\/?$/i.exec(location.pathname)?.[1].toUpperCase() ?? "";
 if (linkCode) history.replaceState(null, "", "/");
 
+// The current run is kept in sessionStorage (per tab), so a refresh resumes it.
+const runKey = "studyraid-run";
+type Run = {
+  screen: Screen;
+  mode: "free" | "class";
+  theme: Theme;
+  notes: string;
+  filename: string;
+  session: StudySession | null;
+  demo: boolean;
+  completed: number;
+  encounter: number;
+  answers: Record<number, number>;
+  adaptive: AdaptiveGame | null;
+  remoteEncounter: RemoteEncounter | null;
+  hp: number;
+  member: MemberContext | null;
+  group: Group | null;
+  teamResult: TeamResult | null;
+};
+function readRun(): Partial<Run> {
+  if (linkCode) return {};
+  try {
+    const run: Partial<Run> = JSON.parse(
+      sessionStorage.getItem(runKey) ?? "{}",
+    );
+    if (run.session && !isStudySession(run.session)) return {};
+    if (run.adaptive) parseAdaptiveGame(run.adaptive);
+    // An answered encounter can't be replayed, so land back on the trail.
+    if (
+      run.screen === "battle" &&
+      run.answers?.[run.encounter ?? -1] !== undefined
+    )
+      run.screen = "journey";
+    return run;
+  } catch {
+    return {};
+  }
+}
+const resumed = readRun();
+
 export default function App() {
-  const [screen, setScreen] = useState<Screen>(linkCode ? "join" : "start");
+  const [screen, setScreen] = useState<Screen>(
+    resumed.screen ?? (linkCode ? "join" : "start"),
+  );
   const [mode, setMode] = useState<"free" | "class">(
-    linkCode ? "class" : "free",
+    resumed.mode ?? (linkCode ? "class" : "free"),
   );
   const [profile, setProfile] = useState<Profile>(() => {
     const value = recall<Profile>("profile", { name: "" });
     return typeof value.name === "string" ? { name: value.name } : { name: "" };
   });
-  const [member, setMember] = useState<MemberContext | null>(null);
+  const [member, setMember] = useState(resumed.member ?? null);
   const [savedMember, setSavedMember] = useState(readMember);
-  const [group, setGroup] = useState<Group | null>(null);
-  const [teamResult, setTeamResult] = useState<TeamResult | null>(null);
-  const [theme, setTheme] = useState<Theme>("fantasy");
+  const [group, setGroup] = useState(resumed.group ?? null);
+  const [teamResult, setTeamResult] = useState(resumed.teamResult ?? null);
+  const [theme, setTheme] = useState<Theme>(resumed.theme ?? "fantasy");
   const [worldPreview, setWorldPreview] = useState<WorldPreview>(null);
-  const [notes, setNotes] = useState("");
-  const [filename, setFilename] = useState("");
+  const [notes, setNotes] = useState(resumed.notes ?? "");
+  const [filename, setFilename] = useState(resumed.filename ?? "");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [session, setSession] = useState<StudySession | null>(null);
-  const [demo, setDemo] = useState(false);
-  const [completed, setCompleted] = useState(0);
-  const [encounter, setEncounter] = useState(0);
-  const [answers, setAnswers] = useState<Record<number, number>>({});
-  const [adaptive, setAdaptive] = useState<AdaptiveGame | null>(null);
-  const [remoteEncounter, setRemoteEncounter] =
-    useState<RemoteEncounter | null>(null);
+  const [session, setSession] = useState(resumed.session ?? null);
+  const [demo, setDemo] = useState(resumed.demo ?? false);
+  const [completed, setCompleted] = useState(resumed.completed ?? 0);
+  const [encounter, setEncounter] = useState(resumed.encounter ?? 0);
+  const [answers, setAnswers] = useState(resumed.answers ?? {});
+  const [adaptive, setAdaptive] = useState(resumed.adaptive ?? null);
+  const [remoteEncounter, setRemoteEncounter] = useState(
+    resumed.remoteEncounter ?? null,
+  );
   const [gameBusy, setGameBusy] = useState(false);
   const [gameError, setGameError] = useState("");
-  const [hp, setHp] = useState(20);
+  const [hp, setHp] = useState(resumed.hp ?? 20);
   const [overlay, setOverlay] = useState<Overlay>(null);
   const [sound, setSound] = useState(() => recall<boolean>("sound", true) !== false);
   const [log, setLog] = useState<QuestRecord[]>(readQuestLog);
@@ -132,6 +176,48 @@ export default function App() {
         answers,
       });
   }, [member, session, adaptive, answers]);
+  useEffect(() => {
+    const run: Run = {
+      screen,
+      mode,
+      theme,
+      notes,
+      filename,
+      session,
+      demo,
+      completed,
+      encounter,
+      answers,
+      adaptive,
+      remoteEncounter,
+      hp,
+      member,
+      group,
+      teamResult,
+    };
+    try {
+      sessionStorage.setItem(runKey, JSON.stringify(run));
+    } catch {
+      /* Storage full or blocked: a refresh just starts over. */
+    }
+  }, [
+    screen,
+    mode,
+    theme,
+    notes,
+    filename,
+    session,
+    demo,
+    completed,
+    encounter,
+    answers,
+    adaptive,
+    remoteEncounter,
+    hp,
+    member,
+    group,
+    teamResult,
+  ]);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "instant" });
