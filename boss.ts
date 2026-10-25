@@ -3,7 +3,7 @@
 import express from "express";
 import type pg from "pg";
 import type OpenAI from "openai";
-import { messageForError, modelName, withGeminiFallback } from "./llm.ts";
+import { messageForError, withGeminiFallback } from "./llm.ts";
 
 export const PASS_MIN_CORRECTNESS = 3;  // out of 4. Correctness gates everything.
 export const PASS_MIN_TOTAL = 11;       // out of 16
@@ -132,8 +132,8 @@ export function bossRouter({ db, muse }: { db: pg.Pool; muse: OpenAI | null }) {
       return ((await r.json()) as { transcript?: string }).transcript ?? "";
     } else {
       // Falls back to GEMINI_FALLBACK_API_KEY when the main key is out of quota (see llm.ts).
-      const r = await withGeminiFallback((ai) => ai.models.generateContent({
-        model: modelName(),
+      const r = await withGeminiFallback((ai, model) => ai.models.generateContent({
+        model,
         contents: [
           { inlineData: { mimeType: "audio/wav", data: wav.toString("base64") } },
           // The no-speech sentence keeps Gemini from returning "[beep]" etc., so 422 no_speech still fires.
@@ -146,8 +146,8 @@ export function bossRouter({ db, muse }: { db: pg.Pool; muse: OpenAI | null }) {
 
   async function grade(c: Concept, level: string | null, transcript: string): Promise<Rubric> {
     const prompt = gradingPrompt(c, level, transcript);
-    const r = await withGeminiFallback((ai) => ai.models.generateContent({
-      model: modelName(), contents: prompt,
+    const r = await withGeminiFallback((ai, model) => ai.models.generateContent({
+      model, contents: prompt,
       config: { responseMimeType: "application/json", responseJsonSchema: RUBRIC_SCHEMA },
     }));
     const g = JSON.parse(r.text ?? "");

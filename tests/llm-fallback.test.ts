@@ -23,13 +23,19 @@ const answer = (text: string) =>
     headers: { "Content-Type": "application/json" },
   });
 const keyOf = (init?: RequestInit) => new Headers(init?.headers).get("x-goog-api-key");
+const modelOf = (url: string | URL | Request) => /models\/([^:]+):/.exec(String(url))?.[1] ?? "";
 
 test("Gemini backup API key", async (t) => {
-  const previous = { main: process.env.GEMINI_API_KEY, backup: process.env.GEMINI_FALLBACK_API_KEY };
-  process.env.GEMINI_API_KEY = "main-key";
-  process.env.GEMINI_FALLBACK_API_KEY = "backup-key";
+  const settings = {
+    GEMINI_API_KEY: "main-key",
+    GEMINI_FALLBACK_API_KEY: "backup-key",
+    GEMINI_MODEL: "main-model",
+    GEMINI_FALLBACK_MODEL: "lite-model",
+  };
+  const previous = Object.fromEntries(Object.keys(settings).map((k) => [k, process.env[k]]));
+  Object.assign(process.env, settings);
   t.after(() => {
-    for (const [name, value] of [["GEMINI_API_KEY", previous.main], ["GEMINI_FALLBACK_API_KEY", previous.backup]] as const) {
+    for (const [name, value] of Object.entries(previous)) {
       if (value === undefined) delete process.env[name];
       else process.env[name] = value;
     }
@@ -59,18 +65,29 @@ test("Gemini backup API key", async (t) => {
     fetch.mock.restore();
   });
 
-  await t.test("gives up after one retry if Gemini stays overloaded", async () => {
+  await t.test("moves to the fallback model when the main model stays overloaded", async () => {
+    const models: string[] = [];
+    const fetch = t.mock.method(globalThis, "fetch", async (url: string | URL | Request) => {
+      models.push(modelOf(url));
+      return modelOf(url) === "main-model" ? overloaded() : answer("from the lite model");
+    });
+    assert.equal(await generateText("hi"), "from the lite model");
+    assert.deepEqual(models, ["main-model", "main-model", "lite-model"]); // one retry, then the switch
+    fetch.mock.restore();
+  });
+
+  await t.test("gives up when both models stay overloaded", async () => {
     const fetch = t.mock.method(globalThis, "fetch", async () => overloaded());
     await assert.rejects(generateText("hi"), (err: unknown) => {
       assert(err instanceof LlmError);
       assert.match(err.message, /overloaded/);
       return true;
     });
-    assert.equal(fetch.mock.callCount(), 2);
+    assert.equal(fetch.mock.callCount(), 4); // a try and a retry on each model
     fetch.mock.restore();
   });
 
-  await t.test("says the daily limit is used up when both keys are out", async () => {
+  await t.test("says the daily limit is used up when both keys are out, without switching models", async () => {
     const fetch = t.mock.method(globalThis, "fetch", async () => quotaError());
     await assert.rejects(generateText("hi"), (err: unknown) => {
       assert(err instanceof LlmError);
