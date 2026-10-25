@@ -65,20 +65,27 @@ export function MatchingScreen({
       setError(err instanceof Error ? err.message : "Could not add friend.");
     }
   }
-  async function begin() {
-    if (!group || busy) return;
+  // solo: make a party of just you first (partner = yourself), then start it.
+  async function begin(solo = false) {
+    if ((!group && !solo) || busy) return;
     const controller = new AbortController();
     operation.current = controller;
-    setBusy("boss");
+    setBusy(solo ? "solo" : "boss");
     setError("");
     try {
-      await startBoss(group.code, controller.signal);
-      if (!controller.signal.aborted) onBoss({ ...group, bossStarted: true });
+      const party = solo
+        ? (await pickPartner(member, member.memberId, controller.signal)).group
+        : group;
+      if (!party) throw new Error("Could not start a solo run.");
+      await startBoss(party.code, controller.signal);
+      if (!controller.signal.aborted) onBoss({ ...party, bossStarted: true });
     } catch (err) {
-      if (!controller.signal.aborted)
+      if (!controller.signal.aborted) {
         setError(
           err instanceof Error ? err.message : "Could not start the boss.",
         );
+        poll.refresh();
+      }
     } finally {
       if (!controller.signal.aborted) setBusy("");
     }
@@ -167,14 +174,16 @@ export function MatchingScreen({
             </p>
             <button
               className="primary-button full-width"
-              disabled={!!busy || group.members.length < 2}
+              disabled={!!busy}
               onClick={() => (group.bossStarted ? onBoss(group) : void begin())}
             >
               {busy === "boss"
                 ? "Opening the final meeting…"
                 : group.bossStarted
                   ? "Return to the boss"
-                  : `Start boss with ${group.members.length} players`}
+                  : group.members.length === 1
+                    ? "Start boss solo"
+                    : `Start boss with ${group.members.length} players`}
               <PixelIcon name="crown" size={17} />
             </button>
           </>
@@ -227,6 +236,17 @@ export function MatchingScreen({
                 </button>
               </article>
             ))}
+            {!group && (
+              <button
+                className="text-button"
+                disabled={!!busy}
+                onClick={() => void begin(true)}
+              >
+                {busy === "solo"
+                  ? "Opening the final meeting…"
+                  : "Skip matching and play the boss solo"}
+              </button>
+            )}
           </div>
         )}
         {(error || poll.error) && <Notice>{error || poll.error}</Notice>}

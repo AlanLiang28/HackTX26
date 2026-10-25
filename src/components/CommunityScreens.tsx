@@ -154,8 +154,7 @@ export function ProfileScreen({
           />
         </label>
         <p className="field-help">
-          Study partners are matched by your world: players who pick Sports
-          team up with Sports, and Fantasy with Fantasy.
+          Study partners are matched by interests.
         </p>
         {error && <Notice>{error}</Notice>}
         <button

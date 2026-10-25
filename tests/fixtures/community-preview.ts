@@ -33,6 +33,7 @@ type Member = {
   attempts: number;
   correct: number;
   grouped: boolean;
+  solo?: boolean;
 };
 const members = new Map<string, Member>();
 const classes = new Map([
@@ -94,7 +95,9 @@ function memberView(member: Member) {
             bossStarted: fight[1].started,
             members: [
               { id: member.id, name: member.name, theme: member.theme },
-              { id: "peer", name: "Linus", theme: member.theme },
+              ...(member.solo
+                ? []
+                : [{ id: "peer", name: "Linus", theme: member.theme }]),
             ],
           }
         : null,
@@ -242,6 +245,7 @@ function match(req: express.Request, res: express.Response) {
   if (!m) return;
   if (!m.ready) return fail(res, 409, "You both need to reach the boss first.");
   m.grouped = true;
+  m.solo = req.body.partnerId === m.id;
   fights.set("PARTY1", { owner: m, started: false, attempts: [], last: null });
   res.json(memberView(m));
 }
@@ -285,7 +289,7 @@ function bossView(code: string) {
   const f = fights.get(code)!;
   const players = [
     { id: `player-${f.owner.id}`, name: f.owner.name },
-    { id: "peer-player", name: "Linus" },
+    ...(f.owner.solo ? [] : [{ id: "peer-player", name: "Linus" }]),
   ];
   const computed = computeState({
     roster: players,

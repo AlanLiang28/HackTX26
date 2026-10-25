@@ -197,6 +197,7 @@ export function classRouter({ db, ai }: { db: pg.Pool; ai: GoogleGenAI }) {
   const notYou = (res: express.Response) => fail(res, 403, "not_member", "Rejoin to keep playing.");
 
   // Match two players: start a group together, or join the partner's (or add them to yours).
+  // partnerId === memberId starts a group of one (playing solo); the boss handles any roster size.
   // The group's boss uses the class pack, or for free agents the pack of whoever started the group (its host).
   async function matchUp(req: express.Request, res: express.Response, cls: ClassRow | null) {
     const { memberId, partnerId } = req.body ?? {};
@@ -211,7 +212,7 @@ export function classRouter({ db, ai }: { db: pg.Pool; ai: GoogleGenAI }) {
       const sessionId = me?.session_id ?? partner?.session_id;
       const existing = all.filter((m) => sessionId && m.session_id === sessionId);
       const error: Failure | null =
-        !me || !partner || me === partner ? [404, "member_not_found", NO_MEMBER]
+        !me || !partner ? [404, "member_not_found", NO_MEMBER]
         : !me.ready || !partner.ready ? [409, "not_ready", "You both need to reach the boss in phase 1 first."]
         : me.session_id && partner.session_id ? [409, "already_grouped", "You're both already in groups."]
         : existing[0]?.boss_started ? [409, "boss_started", "That group's boss fight already started."]
@@ -221,7 +222,7 @@ export function classRouter({ db, ai }: { db: pg.Pool; ai: GoogleGenAI }) {
         await client.query("ROLLBACK");
         return fail(res, ...error);
       }
-      const joining = [me!, partner!].filter((m) => !m.session_id);
+      const joining = [...new Set([me!, partner!])].filter((m) => !m.session_id);
       const host = existing[0]?.group_host ?? me!.id;
       const theme = (existing[0]?.group_theme ?? me!.theme) as Theme;
       const pack: Pack = cls
