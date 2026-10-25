@@ -62,7 +62,7 @@ export function StartScreen({
           disabled={busy}
           onClick={() => onSelect("teacher")}
         >
-          <PixelSprite kind="coach" />
+          <PixelSprite kind="astronaut" />
           <h2>Teacher desk</h2>
           <p>Share a lesson. See how it lands.</p>
           <span>
@@ -154,8 +154,7 @@ export function ProfileScreen({
           />
         </label>
         <p className="field-help">
-          Study partners are matched by your world: players who pick Sports
-          team up with Sports, and Fantasy with Fantasy.
+          Study partners are matched by interests.
         </p>
         {error && <Notice>{error}</Notice>}
         <button

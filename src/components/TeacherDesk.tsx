@@ -415,7 +415,7 @@ export function TeacherDesk({ onBusy }: { onBusy: (busy: boolean) => void }) {
         <section className="teacher-panel pixel-panel">
           <div className="panel-heading">
             <h2>My classrooms</h2>
-            <PixelSprite kind="coach" />
+            <PixelSprite kind="astronaut" />
           </div>
           {classes.length ? (
             <div className="saved-classes">
