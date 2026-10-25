@@ -8,7 +8,7 @@
 import pg from "pg";
 import { GoogleGenAI } from "@google/genai";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { generatePack, type Pack } from "./game-routes.ts";
+import { ENCOUNTERS_BEFORE_BOSS, generatePack, type Pack } from "./game-routes.ts";
 import { groupConcepts, rankMatches } from "./classes.ts";
 import { computeState, isPass, type Concept, type Rubric } from "./boss.ts";
 import { interestFor } from "./src/lib/adaptive.ts";
@@ -126,18 +126,18 @@ type Member = {
   embedding: number[] | null; sessionId: string | null; playerId: string | null;
 };
 
-// Phase 1 like game-routes: weakest smoothed proficiency first, 3 lives, 6 encounters, restart on game over.
+// Phase 1 like game-routes: weakest smoothed proficiency first, 3 lives, 3 encounters, restart on game over.
 function playPhase1(pack: Pack, notes: string, start: number, finish: boolean) {
   const hard = pack.subtopics.find((s) => HARD[notes]?.test(`${s.name} ${s.lesson}`))?.name ?? pack.subtopics[1].name;
   const skill = 0.8 + rand() * 0.18;
-  const stopAt = finish ? Infinity : int(2, 4);
+  const stopAt = finish ? Infinity : int(1, ENCOUNTERS_BEFORE_BOSS - 1);
   const answers: Answer[] = [];
   let t = start + int(1, 5) * MIN;
   for (let run = 0; run < 3; run++) {
     const prof = new Map(pack.subtopics.map((s) => [s.name, { a: 0, c: 0 }]));
     const score = (n: string) => (prof.get(n)!.c + 1) / (prof.get(n)!.a + 2);
     let lives = 3;
-    for (let done = 0; done < 6 && lives > 0; done++) {
+    for (let done = 0; done < ENCOUNTERS_BEFORE_BOSS && lives > 0; done++) {
       if (answers.length >= stopAt) return { answers, readyAt: null };
       const names = [...prof.keys()];
       const low = Math.min(...names.map(score));

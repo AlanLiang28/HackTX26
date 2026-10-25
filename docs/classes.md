@@ -6,7 +6,7 @@ Backend for the class structure and for free agents (players without a class, ma
 
 1. **Teacher creates a class** with the study material. They get a 6-character class code to share and a private `teacherToken` for the dashboard. The server immediately builds the class's two game packs, one for Sports and one for Fantasy, in the background.
 2. **Students join** with the code and their name. Their world (Sports or Fantasy) is their interest for matching.
-3. **Phase 1 is solo.** Each student plays the existing adaptive game (lessons and six encounters) in the world they choose. Every answer is logged to Tiger Data. Reaching the boss (`state.phase === "boss_ready"`) marks the student **ready**.
+3. **Phase 1 is solo.** Each student plays three study encounters in the world they choose, followed by the shared boss as the fourth encounter. Every answer is logged to Tiger Data. Reaching the boss (`state.phase === "boss_ready"`) marks the student **ready**.
 4. **Matching.** Each student gets classmates ranked by world, with classmates in the same world first, and picks one to team up with. A pick either starts a new group or joins the classmate's group. Groups hold 2 to 4 players, and both students must be ready.
 5. **Game phase together.** A group is a normal boss session, so the group plays the existing multiplayer boss fight (`docs/part3-boss-fight.md`) using its `group.code` and each member's `group.playerId`. The boss's key concepts are the **group's two weakest subtopics** from phase 1.
 

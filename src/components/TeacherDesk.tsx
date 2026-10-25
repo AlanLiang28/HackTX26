@@ -573,7 +573,6 @@ export function TeacherDesk({ onBusy }: { onBusy: (busy: boolean) => void }) {
                     type="button"
                     className={`upload-zone ${dragging ? "dragging" : ""} ${material.trim() ? "has-file" : ""}`}
                     disabled={busy || reading}
-                    aria-describedby="class-file-help"
                     onClick={() => fileInput.current?.click()}
                     onDragOver={(event) => {
                       event.preventDefault();
@@ -598,14 +597,6 @@ export function TeacherDesk({ onBusy }: { onBusy: (busy: boolean) => void }) {
                             ? "Your pasted notes are ready"
                             : "Drop class notes here")}
                     </strong>
-                    <span>
-                      {material.trim()
-                        ? `${material.length.toLocaleString()} characters · click to replace`
-                        : "or browse files · TXT or Markdown"}
-                    </span>
-                    <small id="class-file-help">
-                      Up to 1 MB and 20,000 characters. Paste text from PDFs or slides.
-                    </small>
                   </button>
                 ) : (
                   <div className="notes-wrapper">
