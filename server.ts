@@ -10,6 +10,7 @@ import rateLimit from "express-rate-limit";
 import { gameRouter } from "./game-routes.ts";
 import { generateText, parseJsonLoose, LlmError } from "./llm.ts";
 import { bossRouter } from "./boss.ts";
+import { classRouter } from "./classes.ts";
 
 process.loadEnvFile();
 
@@ -27,6 +28,7 @@ const AI_ROUTES = [
   "/api/sessions",
   "/api/game/start",
   "/api/sessions/:code/boss/attempt",
+  "/api/classes", // creating a class builds its two game packs; class plays reuse them, so they stay unlimited
 ];
 
 // Per visitor: 5 AI requests per minute, 40 per day
@@ -155,6 +157,7 @@ app.get("/api/stats", async (_req, res) => {
 
 // ---- Part 3: boss fight (must stay above the static site + catch-all) ----
 app.use(bossRouter({ db, ai, muse }));
+app.use(classRouter({ db })); // classes + matching; groups play the boss above (docs/classes.md)
 
 // ---- Serve the built React site (after `npm run build`) ----
 app.use(express.static(path.resolve("dist")));
