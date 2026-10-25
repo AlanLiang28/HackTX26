@@ -17,7 +17,7 @@ For adaptive adventures from your own notes, also start the backend in another t
 npx tsx watch server.ts
 ```
 
-The backend requires the existing environment configuration and database setup. Set `MODEL_API_KEY` (or `META_API_KEY`) for Meta Muse. `MUSE_MODEL` and `META_API_BASE` are optional overrides. Vite proxies `/api` requests to `http://localhost:3001`. Keep credentials in your local environment.
+The backend requires the existing environment configuration and database setup. Set `GEMINI_API_KEY` for Gemini. `GEMINI_MODEL` is an optional override (defaults to `gemini-3.5-flash`). Vite proxies `/api` requests to `http://localhost:3001`. Keep credentials in your local environment.
 
 ## Frontend flow
 
@@ -43,7 +43,7 @@ Character art is in `src/components/PixelSprite.tsx`; personalities and lesson a
 
 The existing frontend now uses Joshua's `game-routes.ts` API through `src/lib/adaptive.ts`. The Sports/Fantasy choice supplies the preset theme; users cannot enter custom themes. The older `POST /api/explain`, history, and stats endpoints remain available. Joshua's standalone `Game.tsx` is retained as source but is not mounted in this frontend.
 
-- `POST /api/game/start` builds the lessons and question bank with one Muse call (malformed model output may trigger one retry). Only lessons and game metadata reach the browser initially.
+- `POST /api/game/start` builds the lessons and question bank with one Gemini call (malformed model output may trigger one retry). Only lessons and game metadata reach the browser initially.
 - `POST /api/game/:gameId/next` selects an unanswered question using smoothed proficiency `(correct + 1) / (attempts + 2)`. Weaker topics take priority, ties favor fewer attempts, and fresh questions are exhausted before repeats. Reopening an unanswered encounter returns the same question.
 - `POST /api/game/:gameId/answer` grades on the server, records topic performance, and returns the answer explanation. The frontend includes the question ID so retrying a failed network request does not deduct another life.
 - `POST /api/game/:gameId/restart` resets the run using the same pack, without another model call.

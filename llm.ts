@@ -1,62 +1,50 @@
-// One place that talks to Meta's Model API (Muse). Both server.ts and game-routes.ts use it,
+// One place that talks to Gemini for text generation. Both server.ts and game-routes.ts use it,
 // so switching models or providers later means editing only this file.
 //
 // .env:
-//   MODEL_API_KEY=...        (META_API_KEY or MUSE_API also work)
-//   MUSE_MODEL=muse-spark-1.3   (optional; try muse-spark-1.1 if 1.3 isn't recognized)
-//   META_API_BASE=...           (optional; defaults to https://api.meta.ai/v1)
+//   GEMINI_API_KEY=...
+//   GEMINI_MODEL=gemini-3.5-flash   (optional)
+import { GoogleGenAI } from "@google/genai";
 
 // Env is read lazily: ESM hoists imports, so process.loadEnvFile() in server.ts runs after this file loads.
-const apiKey = () => process.env.MODEL_API_KEY ?? process.env.META_API_KEY ?? process.env.MUSE_API; // MUSE_API is what coach.ts uses
-const baseUrl = () => (process.env.META_API_BASE ?? "https://api.meta.ai/v1").replace(/\/$/, "");
-export const modelName = () => process.env.MUSE_MODEL ?? "muse-spark-1.3";
+const apiKey = () => process.env.GEMINI_API_KEY;
+export const modelName = () => process.env.GEMINI_MODEL ?? "gemini-3.5-flash";
+
+let client: GoogleGenAI | null = null;
+const gemini = () => (client ??= new GoogleGenAI({ apiKey: apiKey() }));
 
 // An error whose message is safe and useful to show the player.
 export class LlmError extends Error {}
 
 function messageForStatus(status: number): string {
-  if (status === 401 || status === 403) return "Meta rejected the API key. Check MODEL_API_KEY in .env.";
-  if (status === 404) return `Meta doesn't recognize the model "${modelName()}". Set MUSE_MODEL in .env (try muse-spark-1.1).`;
-  if (status === 429) return "Meta's rate limit was reached. Wait a moment and try again.";
-  if (status === 400) return `Meta rejected the request. Check that MUSE_MODEL ("${modelName()}") is valid.`;
-  return `Meta's API had a problem (status ${status}). Try again.`;
+  if (status === 401 || status === 403) return "Gemini rejected the API key. Check GEMINI_API_KEY in .env.";
+  if (status === 404) return `Gemini doesn't recognize the model "${modelName()}". Set GEMINI_MODEL in .env.`;
+  if (status === 429) return "Gemini's rate limit was reached. Wait a moment and try again.";
+  if (status === 400) return `Gemini rejected the request. Check that GEMINI_MODEL ("${modelName()}") is valid.`;
+  return `Gemini's API had a problem (status ${status}). Try again.`;
 }
 
 // Send one prompt, get the model's text back.
 export async function generateText(prompt: string): Promise<string> {
-  const key = apiKey();
-  if (!key) throw new LlmError("Server is missing MODEL_API_KEY. Add it to .env and restart the server.");
+  if (!apiKey()) throw new LlmError("Server is missing GEMINI_API_KEY. Add it to .env and restart the server.");
 
-  let res: Response;
+  let text: string | undefined;
   try {
-    res = await fetch(`${baseUrl()}/chat/completions`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-      body: JSON.stringify({
-        model: modelName(),
-        messages: [{ role: "user", content: prompt }],
-        max_completion_tokens: 16000,
-      }),
+    const r = await gemini().models.generateContent({
+      model: modelName(),
+      contents: prompt,
+      config: { maxOutputTokens: 16000 },
     });
+    text = r.text;
   } catch (e) {
-    console.error("Muse request failed:", e);
-    throw new LlmError("Couldn't reach Meta's API. Check your internet connection.");
+    const status = (e as { status?: number }).status;
+    console.error("Gemini request failed:", e);
+    if (typeof status === "number") throw new LlmError(messageForStatus(status));
+    throw new LlmError("Couldn't reach Gemini's API. Check your internet connection.");
   }
 
-  if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    console.error(`Muse API error ${res.status}:`, detail.slice(0, 500));
-    throw new LlmError(messageForStatus(res.status));
-  }
-
-  const data: unknown = await res.json().catch(() => null);
-  const message = (data as { choices?: { message?: { content?: unknown } }[] } | null)?.choices?.[0]?.message;
-  const content = message?.content;
-  if (typeof content === "string") return content;
-  if (Array.isArray(content)) {
-    return content.map((p) => (typeof p === "object" && p && "text" in p ? String((p as { text: unknown }).text) : "")).join("");
-  }
-  throw new LlmError("Meta's API returned an empty answer. Try again.");
+  if (text) return text;
+  throw new LlmError("Gemini's API returned an empty answer. Try again.");
 }
 
 // Models sometimes wrap JSON in fences or add a sentence around it. Grab the outermost {...}.

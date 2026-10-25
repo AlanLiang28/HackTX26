@@ -1,8 +1,7 @@
-// AI voice explanation: Muse writes a script in character, Gemini TTS performs it.
+// AI voice explanation: Gemini writes a script in character, Gemini TTS performs it.
 // Add to server.ts:   import { registerCoachRoute } from "./coach";
 //                     registerCoachRoute(app);      (after app.use(express.json(...)))
 import type { Express } from "express";
-import OpenAI from "openai";
 import { GoogleGenAI } from "@google/genai";
 
 // Who's talking for each theme. voice = a Gemini prebuilt voice name.
@@ -60,16 +59,13 @@ const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const statusOf = (err: unknown) => (err as { status?: number }).status;
 const isBusy = (s?: number) => s === 503 || s === 429 || s === 500;
 
-// ---------- Step 1: Muse writes the speech ----------
+// ---------- Step 1: Gemini writes the speech ----------
 async function writeScript(topic: string, interest: string, facts: string, persona: string) {
-  const muse = new OpenAI({ baseURL: "https://api.meta.ai/v1", apiKey: process.env.MUSE_API });
+  const gemini = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-  const reply = await muse.chat.completions.create({
-    model: process.env.MUSE_MODEL ?? "muse-spark-1.1",
-    messages: [
-      {
-        role: "user",
-        content: `You are ${persona}. Explain this topic to a student, out loud, staying fully in character.
+  const reply = await gemini.models.generateContent({
+    model: process.env.GEMINI_MODEL ?? "gemini-3.5-flash",
+    contents: `You are ${persona}. Explain this topic to a student, out loud, staying fully in character.
 
 Topic: ${topic}
 ${facts ? `Facts you must cover accurately:\n${facts}\n` : ""}
@@ -79,11 +75,9 @@ Rules:
 - This is a spoken script: no headings, lists, emojis, markdown, or stage directions in brackets.
 - You may use the tag <short pause> two or three times for dramatic effect.
 - End with a short, punchy line that sums up the key idea.`,
-      },
-    ],
   });
 
-  return reply.choices[0]?.message?.content?.trim() ?? "";
+  return reply.text?.trim() ?? "";
 }
 
 // ---------- Step 2: Gemini performs it ----------

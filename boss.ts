@@ -116,6 +116,7 @@ ${transcript.replace(/<\/?student_speech>/gi, "")}
 
 const clamp = (n: unknown) => Math.min(4, Math.max(0, Math.round(Number(n) || 0)));
 
+// muse is only used for voice transcription; grading always uses Gemini.
 export function bossRouter({ db, ai, muse }: { db: pg.Pool; ai: GoogleGenAI; muse: OpenAI | null }) {
   const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-3.5-flash"; // read here: imports run before loadEnvFile()
 
@@ -146,22 +147,11 @@ export function bossRouter({ db, ai, muse }: { db: pg.Pool; ai: GoogleGenAI; mus
 
   async function grade(c: Concept, level: string | null, transcript: string): Promise<Rubric> {
     const prompt = gradingPrompt(c, level, transcript);
-    let raw: string;
-    if (muse) {
-      const r = await muse.chat.completions.create({
-        model: "muse-spark-1.3",
-        messages: [{ role: "user", content: prompt }],
-        response_format: { type: "json_schema", json_schema: { name: "rubric", strict: true, schema: RUBRIC_SCHEMA } },
-      });
-      raw = r.choices[0]?.message.content ?? "";
-    } else {
-      const r = await ai.models.generateContent({
-        model: GEMINI_MODEL, contents: prompt,
-        config: { responseMimeType: "application/json", responseJsonSchema: RUBRIC_SCHEMA },
-      });
-      raw = r.text ?? "";
-    }
-    const g = JSON.parse(raw);
+    const r = await ai.models.generateContent({
+      model: GEMINI_MODEL, contents: prompt,
+      config: { responseMimeType: "application/json", responseJsonSchema: RUBRIC_SCHEMA },
+    });
+    const g = JSON.parse(r.text ?? "");
     return {
       correctness: clamp(g.correctness), depth: clamp(g.depth),
       understanding: clamp(g.understanding), clarity: clamp(g.clarity),

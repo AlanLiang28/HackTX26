@@ -1,4 +1,4 @@
-// Backend: keeps keys safe, talks to Meta Muse and Tiger Data, serves the built site.
+// Backend: keeps keys safe, talks to Gemini and Tiger Data, serves the built site.
 // Dev:  npx tsx watch server.ts
 import express from "express";
 import path from "node:path";
@@ -72,11 +72,11 @@ const db = new pg.Pool({
   ssl: { rejectUnauthorized: false },
 });
 
-// ---- Model: Meta Muse (see llm.ts) ----
+// ---- Model: Gemini (see llm.ts) ----
 
 // ---- Boss fight models (boss.ts) ----
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-// Muse (Meta): null until the team has a key; boss LLM calls fall back to Gemini.
+// Muse (Meta) handles voice transcription only; null without a key, so transcription falls back to Gemini.
 const muse = process.env.META_API_KEY
   ? new OpenAI({ apiKey: process.env.META_API_KEY, baseURL: "https://api.meta.ai/v1" })
   : null;

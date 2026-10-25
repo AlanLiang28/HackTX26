@@ -12,14 +12,14 @@ import type {
 } from "../src/lib/adaptive.ts";
 
 test("adaptive game API", async (t) => {
-  const previousKey = process.env.MODEL_API_KEY;
-  process.env.MODEL_API_KEY = "test-only-key";
+  const previousKey = process.env.GEMINI_API_KEY;
+  process.env.GEMINI_API_KEY = "test-only-key";
   let modelCalls = 0;
   t.mock.method(globalThis, "fetch", async () => {
     modelCalls++;
     return new Response(
       JSON.stringify({
-        choices: [{ message: { content: JSON.stringify(gamePack) } }],
+        candidates: [{ content: { role: "model", parts: [{ text: JSON.stringify(gamePack) }] } }],
       }),
       {
         headers: { "Content-Type": "application/json" },
@@ -35,8 +35,8 @@ test("adaptive game API", async (t) => {
     server.once("error", reject);
   });
   t.after(async () => {
-    if (previousKey === undefined) delete process.env.MODEL_API_KEY;
-    else process.env.MODEL_API_KEY = previousKey;
+    if (previousKey === undefined) delete process.env.GEMINI_API_KEY;
+    else process.env.GEMINI_API_KEY = previousKey;
     await new Promise<void>((resolve, reject) =>
       server.close((error) => (error ? reject(error) : resolve())),
     );
