@@ -3,6 +3,7 @@ import type { FormEvent } from "react";
 import { PixelIcon } from "./components/PixelIcon";
 import { PixelSprite } from "./components/PixelSprite";
 import { WorldScreen, MaterialsScreen } from "./components/SetupScreens";
+import type { WorldPreview } from "./components/SetupScreens";
 import { AdventureMap } from "./components/AdventureMap";
 import { Encounter } from "./components/Encounter";
 import { Modal } from "./components/Modal";
@@ -86,6 +87,7 @@ export default function App() {
   const [group, setGroup] = useState<Group | null>(null);
   const [teamResult, setTeamResult] = useState<TeamResult | null>(null);
   const [theme, setTheme] = useState<Theme>("fantasy");
+  const [worldPreview, setWorldPreview] = useState<WorldPreview>(null);
   const [notes, setNotes] = useState("");
   const [filename, setFilename] = useState("");
   const [loading, setLoading] = useState(false);
@@ -114,6 +116,7 @@ export default function App() {
       ? 1
       : 2;
   const inCombat = screen === "battle" || screen === "party-boss";
+  const backgroundTheme = screen === "world" ? worldPreview ?? theme : theme;
   const correct = adaptive
     ? adaptive.state.defeated
     : (session?.content.quiz.filter(
@@ -497,7 +500,7 @@ export default function App() {
   }
 
   return (
-    <div className={`app theme-${theme} ${inCombat ? "in-combat" : ""}`}>
+    <div className={`app theme-${backgroundTheme} ${inCombat ? "in-combat" : ""}`}>
       <div className="world-background" aria-hidden="true" />
       <div className="world-wash" aria-hidden="true" />
       <div className="ambient-pixels" aria-hidden="true">
@@ -672,11 +675,18 @@ export default function App() {
         {screen === "world" && (
           <WorldScreen
             theme={theme}
+            preview={worldPreview}
+            onPreview={(next) => {
+              setWorldPreview(next);
+              chime();
+            }}
             onChoose={(next) => {
+              setWorldPreview(null);
               setTheme(next);
               chime();
             }}
             onContinue={() => {
+              if (worldPreview) return;
               if (mode === "class" && member)
                 void prepare((signal) => loadMemberGame(member, theme, signal));
               else {
