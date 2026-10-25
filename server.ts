@@ -8,7 +8,7 @@ import OpenAI from "openai";
 import { registerCoachRoute, warmConceptVoice } from "./coach.ts";
 import rateLimit from "express-rate-limit";
 import { gameRouter, onPackConcept } from "./game-routes.ts";
-import { generateText, parseJsonLoose, LlmError } from "./llm.ts";
+import { generateText, parseJsonLoose, pdfText, LlmError } from "./llm.ts";
 import { bossRouter } from "./boss.ts";
 import { classRouter } from "./classes.ts";
 import { friendRouter } from "./friends.ts";
@@ -36,6 +36,7 @@ const AI_ROUTES = [
   "/api/sessions/:code/boss/attempt",
   "/api/classes", // creating a class builds its two game packs; class plays reuse them, so they stay unlimited
   "/api/free-agents", // signing up builds the free agent's pack
+  "/api/pdf-text",
 ];
 
 // Voice explanations have their own, looser limits: the game makes one per concept
@@ -150,6 +151,20 @@ app.post("/api/explain", async (req, res) => {
     res.status(500).json({
       error: err instanceof LlmError ? err.message : "Something went wrong generating the explanation. Try again.",
     });
+  }
+});
+
+// PDF upload: Gemini reads the PDF and sends back its text, which the browser then uses like a TXT upload.
+app.post("/api/pdf-text", express.raw({ type: "application/pdf", limit: "10mb" }), async (req, res) => {
+  if (!Buffer.isBuffer(req.body) || !req.body.length) {
+    res.status(400).json({ error: "Choose a PDF file." });
+    return;
+  }
+  try {
+    res.json({ text: await pdfText(req.body) });
+  } catch (err) {
+    console.error("pdf text failed:", err);
+    res.status(502).json({ error: err instanceof LlmError ? err.message : "Couldn't read that PDF. Paste the text instead." });
   }
 });
 

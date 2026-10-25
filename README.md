@@ -20,7 +20,7 @@ Vite forwards `/api` to `http://localhost:3001`. `STUDYRAID_API_TARGET` can over
 The backend reads local environment configuration. Keep credentials out of frontend code:
 
 - `DATABASE_URL`: Tiger Data/Postgres connection.
-- `GEMINI_API_KEY`: game-pack generation, subject embeddings, boss grading, transcription fallback, and coach audio. `GEMINI_MODEL` optionally overrides the text model.
+- `GEMINI_API_KEY`: game-pack generation, subject embeddings, boss grading, transcription fallback, and coach audio. `GEMINI_MODEL` optionally overrides the text model; `GEMINI_FALLBACK_MODEL` (default `gemini-3.5-flash-lite`) takes over when it is overloaded.
 - `GEMINI_FALLBACK_API_KEY`: optional backup key for quota failures.
 - `META_API_KEY`: optional Muse voice transcription and coach script generation. `MUSE_API` works too; without either key, Gemini transcribes and writes the coach script.
 - Optional model overrides are documented in `llm.ts`, `boss.ts`, and `coach.ts`.
@@ -31,9 +31,9 @@ For the new class, group, and boss tables, run `npx tsx setup-db.ts` against the
 
 The home screen has three entry points, all using the same paper panels, local pixel sprites, and minimal controls:
 
-1. **Bring my notes.** Choose Sports or Fantasy, add a name, then upload TXT/Markdown or paste up to 20,000 characters. This starts an independent student through `/api/free-agents`. The world is also what matching uses; users cannot enter custom worlds.
+1. **Bring my notes.** Choose Sports or Fantasy, add a name, then upload a PDF, TXT or Markdown file, or paste up to 20,000 characters. This starts an independent student through `/api/free-agents`. The world is also what matching uses; users cannot enter custom worlds.
 2. **Join a class.** Enter the teacher's six-character code and a name. Choose a world and start the class lesson. Students share the class's cached world packs and do not need to supply notes.
-3. **Teacher desk.** Create a class in two steps: class details, then study material. Choose Upload to browse or drag in a TXT/Markdown file (up to 1 MB and 20,000 characters), or choose Paste text. Switch to Paste text to review or edit uploaded material before creating the class. Save the private teacher key when it is first shown. The browser remembers classroom access; another device can open the dashboard with the class code and teacher key. The dashboard shows students, readiness, parties, and topics that need review.
+3. **Teacher desk.** Create a class in two steps: class details, then study material. Choose Upload to browse or drag in a PDF (up to 10 MB, read by Gemini through `/api/pdf-text`) or TXT/Markdown file (up to 1 MB); either way up to 20,000 characters, or choose Paste text. Switch to Paste text to review or edit uploaded material before creating the class. Save the private teacher key when it is first shown. The browser remembers classroom access; another device can open the dashboard with the class code and teacher key. The dashboard shows students, readiness, parties, and topics that need review.
 
 Student adventures retain a **vertical foes list** and the existing character dialogue. Each run has four encounters total: three study encounters with different characters, then the final boss. Live solo rounds have three lives. Missed concepts receive priority in later questions. Every class/free-agent answer is logged by the backend.
 
