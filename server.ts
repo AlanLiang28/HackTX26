@@ -29,6 +29,7 @@ const AI_ROUTES = [
   "/api/game/start",
   "/api/sessions/:code/boss/attempt",
   "/api/classes", // creating a class builds its two game packs; class plays reuse them, so they stay unlimited
+  "/api/free-agents", // signing up builds the free agent's pack
 ];
 
 // Per visitor: 5 AI requests per minute, 40 per day
@@ -157,7 +158,7 @@ app.get("/api/stats", async (_req, res) => {
 
 // ---- Part 3: boss fight (must stay above the static site + catch-all) ----
 app.use(bossRouter({ db, ai, muse }));
-app.use(classRouter({ db })); // classes + matching; groups play the boss above (docs/classes.md)
+app.use(classRouter({ db, ai })); // classes, free agents + matching; groups play the boss above (docs/classes.md)
 
 // ---- Serve the built React site (after `npm run build`) ----
 app.use(express.static(path.resolve("dist")));

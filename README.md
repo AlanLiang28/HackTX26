@@ -50,7 +50,7 @@ The existing frontend now uses Joshua's `game-routes.ts` API through `src/lib/ad
 
 Games are held in server memory, with stale games cleaned up when another game starts (three-hour threshold). Server restarts discard active runs. Quest history in this frontend remains local to the device.
 
-**Classes** (`classes.ts`, [docs/classes.md](docs/classes.md)): a teacher creates a class from their material, and students join with a code and their interests. Students play phase 1 alone, with every answer logged to Tiger Data. They then match with classmates who share their interests and fight the boss together. A group is a regular boss session, so `boss.ts` runs it unchanged. Its key concepts are the group's weakest subtopics.
+**Classes** (`classes.ts`, [docs/classes.md](docs/classes.md)): a teacher creates a class from their material, and students join with a code and their interests. Students play phase 1 alone, with every answer logged to Tiger Data. They then match with classmates who share their interests and fight the boss together. **Free agents** (no class) bring their own notes and are matched with other free agents on interests and topic, using pgvector embeddings. A group is a regular boss session, so `boss.ts` runs it unchanged. Its key concepts are the group's weakest subtopics.
 
 Backend-owned work still needed:
 

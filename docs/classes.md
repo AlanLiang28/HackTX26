@@ -1,6 +1,6 @@
-# Classes and matching (backend contract)
+# Classes, free agents, and matching (backend contract)
 
-Backend for the class structure. The frontend builds on these endpoints. Code: `classes.ts`. Tables: `setup-db.ts`.
+Backend for the class structure and for free agents (players without a class, matched on interests and topic; see [Free agents](#free-agents)). The frontend builds on these endpoints. Code: `classes.ts`. Tables: `setup-db.ts`.
 
 ## Flow
 
@@ -77,6 +77,7 @@ This returns **exactly the same shape as `POST /api/game/start`**, so after it, 
   },
   "matches": [                     // best first. Empty once the group is full or its boss started.
     { "memberId": "…", "name": "Linus", "interests": ["anime", "chess"], "shared": ["anime"],
+      "topic": null,               // always null in classes; set for free agents
       "score": 0.33, "ready": true, "groupSize": 1 }
   ]
 }
@@ -98,6 +99,31 @@ Ranking is by Jaccard overlap of interests (`score`, 0 to 1), then by the same w
 
 Each time a member joins, the boss's key concepts are recomputed from the whole group's phase 1 answers.
 
+## Free agents
+
+A free agent is a player who isn't in a class. They bring their own notes, play phase 1 alone, and are then recommended to other free agents who share their **interests and topic**, so they can play the game phase together. The routes and response shapes match the class routes, so the same matching screen works for both.
+
+1. `POST /api/free-agents` signs them up and starts phase 1 in one call (one model call). It's rate-limited like the other AI routes.
+
+   ```jsonc
+   // request
+   { "name": "Ada", "interests": ["anime", "basketball"], "theme": "sports" | "fantasy", "material": "…notes, up to 20,000 chars…" }
+   // 200: the same shape as POST /api/game/start, plus memberId
+   { "memberId": "…", "gameId": "…", "playerId": "…", "pack": { … }, "state": { … } }
+   ```
+
+   Store `memberId`, then drive the game with `/api/game/:gameId/next`, `/answer`, and `/restart`. Errors: `400 missing_name | missing_interests | missing_material | material_too_long | bad_theme`, `502 upstream_failed`.
+
+2. `POST /api/free-agents/:memberId/play` replays phase 1 from their stored pack, with no model call. Use it after a server restart.
+3. `GET /api/free-agents/:memberId` returns the same `{ member, group, matches }` view as the class version. Poll it about every 3 seconds while matching.
+4. `POST /api/free-agents/groups` takes `{ "memberId": "<me>", "partnerId": "<match.memberId>" }` and has the same rules and errors as class groups.
+
+**Ranking:** `score = (interest overlap + topic) / 2`. `topic` (0 to 1) is how close the two players' subjects are. It compares embeddings of their subtopic names (Gemini `gemini-embedding-001`, stored in pgvector). The theme isn't part of it, so a Sports player and a Fantasy player studying the same notes still match. Measured: the same subject in different words scores about 0.86, related subjects (cells vs photosynthesis) about 0.2, and unrelated ones 0. If the embedding call fails at signup, that player's `topic` is `null` and they're ranked on interests only. To tune it, adjust `TOPIC_UNRELATED` and `TOPIC_SAME` in `classes.ts`.
+
+**Whose notes the group plays:** the boss uses the pack of the player who **started the group** (the one who sent `memberId` when neither was grouped). Key concepts are still the group's weakest subtopics, from whoever answered questions on that pack. Topic matching is what makes a shared pack fair.
+
+**Freshness:** free agents are suggested for 3 hours after signing up, which is how long a phase 1 game lives. After that they can still use their own routes, but they no longer appear in other players' matches.
+
 ### Then: the boss fight
 
 Use `group.code` and `group.playerId` with the routes in `docs/part3-boss-fight.md`. Any member calls `POST /api/sessions/:code/boss/start` once everyone is in. Players who join a group after its fight starts aren't allowed, so the roster is final.
@@ -107,17 +133,17 @@ Use `group.code` and `group.playerId` with the routes in `docs/part3-boss-fight.
 | Table | What |
 |---|---|
 | `classes` | Code, teacher, material, and `packs` (both worlds' game packs, **including answer keys: never sent to clients**). |
-| `class_members` | Name, interests (`TEXT[]`), last world, `ready_at`, and their group (`session_id`, `player_id`). |
-| `class_answers` | **Hypertable.** One row per phase 1 answer: member, subtopic, and correct. Drives the dashboard and the group's key concepts. |
-| `sessions.class_id` | New column. Groups are `sessions` rows with it set. |
+| `class_members` | Name, interests (`TEXT[]`), last world, `ready_at`, and their group (`session_id`, `player_id`). Free agents are rows with `class_id` null, plus their own `pack` and `topic_embedding vector(768)` (pgvector). |
+| `class_answers` | **Hypertable.** One row per phase 1 answer: member, subtopic, and correct (`class_id` null for free agents). Drives the dashboard and the group's key concepts. |
+| `sessions.class_id` | New column. Class groups are `sessions` rows with it set. It's null for free-agent groups, and `content.host` names the member whose pack the group plays. |
 | `boss_attempts` | Existing hypertable. Each group's boss attempts. |
 
-Run `npx tsx setup-db.ts` once. It's idempotent.
+Run `npx tsx setup-db.ts` once. It's idempotent, and it enables the `vector` extension. Embeddings use `GEMINI_API_KEY` (and `GEMINI_EMBED_MODEL` to override the model).
 
 ## Out of scope
 
 - **Auth.** As with the boss routes, ids are trusted, and `matches` exposes classmates' `memberId`s.
 - **Invite and accept.** A pick groups both students immediately.
 - **Leaving a group.**
-- **Semantic interest matching.** pgvector is available on the Tiger Data instance if exact tags prove too sparse.
+- **Semantic interest matching.** Interests are exact tags. Only topics use embeddings.
 - **A shared mob fight.** Phase 1 encounters stay solo, and only the boss is played together.

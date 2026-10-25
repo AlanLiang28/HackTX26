@@ -1,6 +1,6 @@
 // npx tsx classes.test.ts
 import assert from "node:assert/strict";
-import { groupConcepts, rankMatches } from "./classes.ts";
+import { groupConcepts, rankMatches, topicScore } from "./classes.ts";
 import type { Pack } from "./game-routes.ts";
 
 const m = (id: string, interests: string[], theme: string | null = "sports", ready = true) => ({ id, interests, theme, ready });
@@ -16,6 +16,17 @@ assert.equal(r[2].score, 0);
 // Ties go to the same world, then to classmates who are ready
 r = rankMatches(me, [m("x", ["anime"], "fantasy"), m("y", ["anime"], "sports", false), m("z", ["anime"], "sports")]);
 assert.deepEqual(r.map((x) => x.m.id), ["z", "y", "x"]);
+
+// Free agents: topic similarity is averaged in, so a same-subject stranger beats a same-hobby one
+assert.equal(topicScore(0.6), 0);
+assert.equal(topicScore(0.85), 0.5);
+assert.equal(topicScore(0.99), 1);
+const t = (id: string, interests: string[], cosine: number | null) => ({ ...m(id, interests), topic: cosine });
+r = rankMatches(me, [t("hobby", ["anime", "cooking", "basketball"], 0.74), t("subject", ["anime"], 0.93), t("none", ["chess"], null)]);
+assert.deepEqual(r.map((x) => x.m.id), ["subject", "hobby", "none"]);
+assert.equal(r[0].score, (1 / 3 + topicScore(0.93)) / 2);
+assert.equal(r[1].topic, 0);
+assert.equal(r[2].topic, null);
 
 // Key concepts: the group's weakest tested subtopics; untested ones last; ties keep pack order
 const pack = {

@@ -111,5 +111,15 @@ await client.query(
   "SELECT create_hypertable('class_answers', by_range('created_at'), if_not_exists => TRUE)"
 );
 
-console.log("Tables 'classes', 'class_members', 'class_answers' are ready.");
+// Free agents: class_members rows with no class. They bring their own material (pack), and pgvector
+// matches them on topic. Written as ALTERs so databases made before free agents upgrade too.
+await client.query(`
+  CREATE EXTENSION IF NOT EXISTS vector;
+  ALTER TABLE class_members ALTER COLUMN class_id DROP NOT NULL;
+  ALTER TABLE class_members ADD COLUMN IF NOT EXISTS pack JSONB;                -- free agents only
+  ALTER TABLE class_members ADD COLUMN IF NOT EXISTS topic_embedding vector(768); -- free agents only
+  ALTER TABLE class_answers ALTER COLUMN class_id DROP NOT NULL;
+`);
+
+console.log("Tables 'classes', 'class_members', 'class_answers' are ready (with free agents).");
 await client.end();
