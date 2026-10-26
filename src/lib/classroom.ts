@@ -1,4 +1,4 @@
-import type { Theme } from "./study";
+import { isTheme, type Theme } from "./study";
 import { parseAdaptiveGame } from "./adaptive";
 
 // Players are matched by the world they pick (their Theme), so a profile is just a name.
@@ -305,7 +305,7 @@ export function readMember(): MemberContext | null {
     typeof saved.name === "string" &&
     typeof saved.token === "string" &&
     (saved.kind === "free" || (saved.kind === "class" && saved.class?.code)) &&
-    ["sports", "fantasy"].includes(saved.theme)
+    isTheme(saved.theme)
     ? saved
     : null;
 }

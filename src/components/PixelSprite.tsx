@@ -9,6 +9,10 @@ export type SpriteKind =
   | "coach"
   | "astronaut"
   | "chef"
+  | "gossip"
+  | "monitor"
+  | "newkid"
+  | "principal"
   | "trophy";
 const palette: Record<string, string> = {
   d: "#233f32",
@@ -23,6 +27,7 @@ const palette: Record<string, string> = {
   s: "#e7bc8b",
   k: "#334d3e",
   p: "#6b7976",
+  m: "#d98a9b",
 };
 const sprites: Record<SpriteKind, string[]> = {
   astronaut: [
@@ -218,6 +223,78 @@ const sprites: Record<SpriteKind, string[]> = {
     "..dssggggggssd..",
     "..dssdppppdssd..",
     "...dddppppddd...",
+    ".....dppdppd....",
+    "....ddddddddd...",
+  ],
+  gossip: [
+    ".....dddddd.....",
+    "....dooooood....",
+    "...dooooooood...",
+    "...doossssood...",
+    "...dosdssdsodkk.",
+    "...dossmmssodwk.",
+    "....dossssod.wk.",
+    ".....dddddd..ss.",
+    "...ddmmmmmmddsd.",
+    "..dmmmmwwmmmmmd.",
+    "..dmmmmmmmmmmd..",
+    "..dssdmmmmmmd...",
+    "...ddpppppppd...",
+    "....dppppppd....",
+    ".....dsd.dsd....",
+    "....dddd.dddd...",
+  ],
+  monitor: [
+    ".....dddddd.....",
+    "....dbbbbbbd....",
+    "...dbbbbbbbbd...",
+    "...ddddddddddd..",
+    "....dssssssd....",
+    "....dsdssdsd....",
+    "....dssssssd....",
+    ".....dsrrsd.....",
+    "...ddbbyybbbdd..",
+    "..dbbbbyybbbbbd.",
+    "..dbbbbbyybbbbd.",
+    "..dssbbbbyybssd.",
+    "..dssdppppdssd..",
+    "...dddppppddd...",
+    ".....dppdppd....",
+    "....ddddddddd...",
+  ],
+  newkid: [
+    "......dddd......",
+    ".....drrrrd.....",
+    "....drrrrrrd....",
+    "...drrrrrrrrd...",
+    "...dwwwwwwwwd...",
+    "...dssssssssd...",
+    "...dsddssddsd...",
+    "...dssssssssd...",
+    "....dssddssd....",
+    "...ddaaaaaaadd..",
+    "..daaaaaaaaaaad.",
+    "..daaawwwwaaaad.",
+    "..dssdaaaaaadssd",
+    "...dddbbbbddd...",
+    ".....dbbdbbd....",
+    "....ddddddddd...",
+  ],
+  principal: [
+    "......dddd......",
+    ".....dppppd.....",
+    "....dppppppd....",
+    "...dppppppppd...",
+    "...dpsssssspd...",
+    "....dwdssdwd....",
+    "....dssssssd....",
+    "....dssddssd....",
+    ".....dddddd.....",
+    "...ddkkwwkkdd...",
+    "..dkkkkwwkkkkd..",
+    "..dkkkkwwkyyyyd.",
+    "..dsskkkkkyyyyd.",
+    "...dddkkkkddd...",
     ".....dppdppd....",
     "....ddddddddd...",
   ],

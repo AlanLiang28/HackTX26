@@ -1014,8 +1014,8 @@ export default function App() {
               <div>
                 <strong>Choose a world. Bring your notes.</strong>
                 <p>
-                  Bring your own notes or join with a class code. Pick Sports or
-                  Fantasy: you'll team up with players who picked the same world.
+                  Bring your own notes or join with a class code. Pick Sports,
+                  Fantasy, or Gossip: you'll team up with players who picked the same world.
                 </p>
               </div>
             </li>
@@ -1117,7 +1117,7 @@ export default function App() {
                   <div className="quest-record" key={record.id}>
                     <span className="quest-record-icon">
                       <PixelIcon
-                        name={record.theme === "fantasy" ? "sword" : "football"}
+                        name={worlds[record.theme].icon}
                         size={21}
                       />
                     </span>

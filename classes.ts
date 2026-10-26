@@ -11,12 +11,11 @@ import { createGame, generatePack, type Pack } from "./game-routes.ts";
 import { LlmError } from "./llm.ts";
 import type { Concept } from "./boss.ts";
 import { interestFor } from "./src/lib/adaptive.ts";
+import { THEMES, type Theme } from "./src/lib/study.ts";
 
 export const MAX_GROUP = 4;
 export const KEY_CONCEPTS = 2;   // boss concepts per group: the group's weakest phase 1 subtopics
 const MAX_MATERIAL = 20000;      // same cap as the notes screen
-const THEMES = ["sports", "fantasy"] as const;
-type Theme = (typeof THEMES)[number];
 
 // Calibration knobs for topic matching, measured on gemini-embedding-001 (768-d) over real study notes:
 // unrelated subjects score 0.68-0.77 cosine, related ones (cells vs photosynthesis) 0.83,
@@ -334,7 +333,7 @@ export function classRouter({ db, ai }: { db: pg.Pool; ai: GoogleGenAI }) {
     const me = (await roster(db, cls.id)).find((m) => m.id === req.params.memberId);
     if (!me) return fail(res, 404, "member_not_found", NO_MEMBER);
     const theme = req.body?.theme as Theme;
-    if (!THEMES.includes(theme)) return fail(res, 400, "bad_theme", "Pick sports or fantasy.");
+    if (!THEMES.includes(theme)) return fail(res, 400, "bad_theme", "Pick sports, fantasy, or gossip.");
     let pack: Pack;
     try {
       pack = await packFor(cls, theme);
@@ -371,7 +370,7 @@ export function classRouter({ db, ai }: { db: pg.Pool; ai: GoogleGenAI }) {
     const theme = req.body?.theme as Theme;
     const bad = nameError(name) ?? materialError(material);
     if (bad) return fail(res, ...bad);
-    if (!THEMES.includes(theme)) return fail(res, 400, "bad_theme", "Pick sports or fantasy.");
+    if (!THEMES.includes(theme)) return fail(res, 400, "bad_theme", "Pick sports, fantasy, or gossip.");
     let pack: Pack;
     try {
       // true: the player is waiting to play, so start the first enemy's dialogue voice while the pack streams.

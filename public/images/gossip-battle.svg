@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180" shape-rendering="crispEdges">
+  <!-- Original low-resolution middle school hallway with lockers; deliberately quiet in the center. -->
+  <defs>
+    <g id="locker">
+      <path fill="#7f9e98" d="M0 0h16v78H0z"/>
+      <path fill="#94b2aa" d="M1 1h14v76H1z"/>
+      <path fill="#6b8984" d="M15 0h1v78h-1zM3 5h10v1H3zM3 8h10v1H3zM3 11h10v1H3zM3 66h10v1H3zM3 69h10v1H3z"/>
+      <path fill="#edbe5f" d="M11 34h2v6h-2z"/>
+    </g>
+    <g id="bubble">
+      <path fill="#fff8da" d="M2 0h16v2h2v8h-2v2H9v3H6v-3H2v-2H0V2h2z"/>
+      <path fill="#b39e93" d="M5 5h2v2H5zM9 5h2v2H9zM13 5h2v2h-2z"/>
+    </g>
+  </defs>
+  <path fill="#c9d2b6" d="M0 0h320v128H0z"/>
+  <path fill="#aebd9f" d="M0 0h320v18H0z"/>
+  <g fill="#f4ecc9">
+    <path d="M30 6h40v4H30zM140 6h40v4h-40zM250 6h40v4h-40z"/>
+  </g>
+  <path fill="#e7dcb4" d="M0 18h320v3H0zM0 46h320v4H0z"/>
+  <!-- Far end of the hall: double doors under a clock. -->
+  <path fill="#b8c3a6" d="M118 32h84v96h-84z"/>
+  <path fill="#a6b294" d="M124 38h72v90h-72z"/>
+  <path fill="#e7dcb4" d="M154 22h12v2h2v8h-2v2h-12v-2h-2v-8h2z"/>
+  <path fill="#5f6f64" d="M159 25h2v4h3v2h-5z"/>
+  <path fill="#a39d79" d="M138 62h44v66h-44z"/>
+  <path fill="#bdb38a" d="M140 64h19v64h-19zM161 64h19v64h-19z"/>
+  <path fill="#d8e3db" d="M144 70h11v16h-11zM165 70h11v16h-11z"/>
+  <path fill="#7c7656" d="M156 96h2v6h-2zM162 96h2v6h-2z"/>
+  <!-- Left wall: corkboard of notes, then lockers. -->
+  <path fill="#bf9a62" d="M14 24h70v20H14z"/>
+  <path fill="#a7824f" d="M14 42h70v2H14z"/>
+  <path fill="#fff8da" d="M18 27h12v10H18zM50 30h10v9H50zM70 27h10v8H70z"/>
+  <path fill="#d98a9b" d="M34 28h12v10H34z"/>
+  <path fill="#b7d979" d="M62 36h7v6h-7z"/>
+  <use href="#locker" x="0" y="50"/>
+  <use href="#locker" x="16" y="50"/>
+  <use href="#locker" x="32" y="50"/>
+  <use href="#locker" x="48" y="50"/>
+  <use href="#locker" x="64" y="50"/>
+  <use href="#locker" x="80" y="50"/>
+  <use href="#locker" x="96" y="50"/>
+  <!-- Right wall: a pennant banner, then lockers. -->
+  <path fill="#d98a9b" d="M232 24h76v4h-76z"/>
+  <path fill="#e9aab6" d="M236 28h10v6h-2v3h-6v-3h-2zM256 28h10v6h-2v3h-6v-3h-2zM276 28h10v6h-2v3h-6v-3h-2zM296 28h10v6h-2v3h-6v-3h-2z"/>
+  <use href="#locker" x="208" y="50"/>
+  <use href="#locker" x="224" y="50"/>
+  <use href="#locker" x="240" y="50"/>
+  <use href="#locker" x="256" y="50"/>
+  <use href="#locker" x="272" y="50"/>
+  <use href="#locker" x="288" y="50"/>
+  <use href="#locker" x="304" y="50"/>
+  <!-- The rumor mill. -->
+  <use href="#bubble" x="40" y="58"/>
+  <use href="#bubble" x="262" y="66"/>
+  <!-- Checkered hallway floor. -->
+  <path fill="#d9cfa8" d="M0 128h320v52H0z"/>
+  <g fill="#c6bb93">
+    <path d="M0 128h20v8H0zM40 128h20v8H40zM80 128h20v8H80zM120 128h20v8h-20zM160 128h20v8h-20zM200 128h20v8h-20zM240 128h20v8h-20zM280 128h20v8h-20z"/>
+    <path d="M20 136h20v10H20zM60 136h20v10H60zM100 136h20v10h-20zM140 136h20v10h-20zM180 136h20v10h-20zM220 136h20v10h-20zM260 136h20v10h-20zM300 136h20v10h-20z"/>
+    <path d="M0 146h20v14H0zM40 146h20v14H40zM80 146h20v14H80zM120 146h20v14h-20zM160 146h20v14h-20zM200 146h20v14h-20zM240 146h20v14h-20zM280 146h20v14h-20z"/>
+    <path d="M20 160h20v20H20zM60 160h20v20H60zM100 160h20v20h-20zM140 160h20v20h-20zM180 160h20v20h-20zM220 160h20v20h-20zM260 160h20v20h-20zM300 160h20v20h-20z"/>
+  </g>
+  <path fill="#8a9378" d="M0 126h320v2H0z"/>
+  <!-- A dropped note and a backpack. -->
+  <path fill="#fff8da" d="M96 150h8v6h-8z"/>
+  <path fill="#d98a9b" d="M98 152h4v2h-4z"/>
+  <path fill="#6b7976" d="M232 140h14v16h-14z"/>
+  <path fill="#829193" d="M234 136h10v4h-10zM234 146h10v6h-10z"/>
+</svg>

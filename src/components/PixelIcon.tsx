@@ -3,6 +3,7 @@ export type IconName =
   | "football"
   | "rocket"
   | "utensils"
+  | "chat"
   | "check"
   | "arrow"
   | "arrowLeft"
@@ -31,6 +32,7 @@ const paths: Record<IconName, string> = {
     "M15 2h5v5h-2v2h-2v2h-2v2h-2v2h2v2h-3v-2H9v2H7v2H5v2H2v-3h2v-2h2v-2h2v-2H6v-3h2v2h2V9h2V7h2V5h1V2Zm2 3v2h-2v2h-2v2h-2v2h2v-2h2V9h2V7h1V5h-1Z",
   football:
     "M8 2h10v2h2v2h2v10h-2v2h-2v2h-2v2H6v-2H4v-2H2V8h2V6h2V4h2V2Zm1 2v2H7v2H5v2H4v7h2v2h2v1h7v-2h2v-2h2v-2h1V7h-2V5h-2V4H9Zm6 3 2 2-2 2 2 2-2 2-2-2-2 2 2 2-2 2-2-2-2-2 2-2-2-2 2-2 2 2 2-2-2-2 2-2 2 2 2-2Z",
+  chat: "M3 2h18v2h2v11h-2v2H12v2H9v2H6v-4H3v-2H1V4h2V2Zm2 6v3h3V8H5Zm5 0v3h3V8h-3Zm5 0v3h3V8h-3Z",
   check: "M3 11h3v3h3v3h3v-3h3v-3h3V8h3V5h-3v3h-3v3h-3v3H9v-3H6V8H3v3Z",
   arrow: "M13 3h3v3h3v3h3v6h-3v3h-3v3h-3v-3h3v-3H2V9h14V6h-3V3Z",
   arrowLeft: "M11 3H8v3H5v3H2v6h3v3h3v3h3v-3H8v-3h14V9H8V6h3V3Z",

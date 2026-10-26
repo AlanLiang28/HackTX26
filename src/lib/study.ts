@@ -1,4 +1,8 @@
-export type Theme = "sports" | "fantasy";
+// The playable worlds. The backend (classes.ts) uses this list too, so adding a world starts here.
+export const THEMES = ["sports", "fantasy", "gossip"] as const;
+export type Theme = (typeof THEMES)[number];
+export const isTheme = (value: unknown): value is Theme =>
+  THEMES.includes(value as Theme);
 export type Mapping = {
   concept: string;
   analogy: string;
@@ -36,46 +40,83 @@ export type QuestRecord = {
 };
 const demoNotes =
   "Momentum is the product of mass and velocity: p = mv. Momentum has a direction. In a system with negligible external impulse, total momentum is conserved. When objects collide and stick together, they have the same final velocity. Kinetic energy can change during a collision even while total momentum is conserved.";
+// The demo's world flavor. The physics, numbers, and answers are the same in every world.
+const demoFlavor: Record<
+  Theme,
+  {
+    interest: string;
+    mover: string;
+    overview: string;
+    analogies: [string, string, string, string];
+  }
+> = {
+  fantasy: {
+    interest: "Fantasy",
+    mover: "knight",
+    overview:
+      "Picture a heavily armored knight charging across a clearing. Their motion depends on both how much mass they carry and how fast they move. That combination is momentum—and it follows the same rules for a knight, a rolling cart, or a football player.",
+    analogies: [
+      "An armored knight on the move",
+      "Two knights charging toward each other",
+      "A knight landing in a moving supply cart",
+      "Armor bending when knights collide",
+    ],
+  },
+  sports: {
+    interest: "Sports",
+    mover: "player",
+    overview:
+      "Picture a running back charging down the field. Their motion depends on both their mass and their velocity. That combination is momentum, and it helps explain what happens when players collide.",
+    analogies: [
+      "A running back charging downfield",
+      "Players moving toward opposite end zones",
+      "Two players holding together after a tackle",
+      "Pads compressing during a tackle",
+    ],
+  },
+  gossip: {
+    interest: "Middle school gossip",
+    mover: "hall monitor",
+    overview:
+      "Picture the hall monitor sprinting down the eighth-grade hallway to break up a lunch-table feud. How hard they are to stop depends on both their mass and their speed. That combination is momentum, and it follows the same rules for a hall monitor, a rolling AV cart, or a crowd rushing to see the drama.",
+    analogies: [
+      "The hall monitor rushing toward the drama",
+      "Two friend groups storming toward each other at the lockers",
+      "Two ex-best-friends who collide, make up, and walk off arm in arm",
+      "Backpacks squishing when two students crash at the lockers",
+    ],
+  },
+};
 export function getDemoSession(theme: Theme): StudySession {
-  const fantasy = theme === "fantasy";
+  const flavor = demoFlavor[theme];
   return {
     topic: demoNotes,
-    interest: fantasy ? "Fantasy" : "Sports",
+    interest: flavor.interest,
     level: "high school",
     content: {
       title: "",
-      overview: fantasy
-        ? "Picture a heavily armored knight charging across a clearing. Their motion depends on both how much mass they carry and how fast they move. That combination is momentum—and it follows the same rules for a knight, a rolling cart, or a football player."
-        : "Picture a running back charging down the field. Their motion depends on both their mass and their velocity. That combination is momentum, and it helps explain what happens when players collide.",
+      overview: flavor.overview,
       mappings: [
         {
           concept: "Mass and velocity",
-          analogy: fantasy
-            ? "An armored knight on the move"
-            : "A running back charging downfield",
-          explanation: `Momentum is mass multiplied by velocity: p = mv. ${fantasy ? "A 90 kg knight" : "A 90 kg player"} moving at 6 m/s has 540 kg·m/s of momentum. A heavier object can have less momentum than a lighter one if it is moving more slowly.`,
+          analogy: flavor.analogies[0],
+          explanation: `Momentum is mass multiplied by velocity: p = mv. A 90 kg ${flavor.mover} moving at 6 m/s has 540 kg·m/s of momentum. A heavier object can have less momentum than a lighter one if it is moving more slowly.`,
         },
         {
           concept: "Direction matters",
-          analogy: fantasy
-            ? "Two knights charging toward each other"
-            : "Players moving toward opposite end zones",
+          analogy: flavor.analogies[1],
           explanation:
             "Momentum is a vector: it includes direction. Choose one direction as positive. A 90 kg object moving at +6 m/s has +540 kg·m/s of momentum. A 120 kg object moving at −3 m/s has −360 kg·m/s. Their total is +180 kg·m/s, not 900.",
         },
         {
           concept: "Conservation of momentum",
-          analogy: fantasy
-            ? "A knight landing in a moving supply cart"
-            : "Two players holding together after a tackle",
+          analogy: flavor.analogies[2],
           explanation:
             "If external impulse is negligible, the total momentum before a collision equals the total afterward. When the 90 kg and 120 kg objects above stick together, their combined mass is 210 kg. Their shared final velocity is 180 ÷ 210 ≈ +0.86 m/s.",
         },
         {
           concept: "Momentum vs. kinetic energy",
-          analogy: fantasy
-            ? "Armor bending when knights collide"
-            : "Pads compressing during a tackle",
+          analogy: flavor.analogies[3],
           explanation:
             "Total momentum can be conserved even when kinetic energy is not. In a collision where objects stick together, some kinetic energy becomes sound, heat, or deformation. Energy is still conserved overall; it simply changes form.",
         },
@@ -83,10 +124,10 @@ export function getDemoSession(theme: Theme): StudySession {
       summary:
         "Momentum combines mass, velocity, and direction. When external impulse is negligible, a system’s total momentum stays the same through a collision—even when kinetic energy changes into other forms.",
       limitation:
-        "Real players and knights push against the ground, and those external forces can change the system’s momentum. The collision examples assume that external impulse during the brief impact is negligible. A larger character does not automatically “win.”",
+        "Real people push against the ground, and those external forces can change the system’s momentum. The collision examples assume that external impulse during the brief impact is negligible. A larger character does not automatically “win.”",
       quiz: [
         {
-          question: `A 90 kg ${fantasy ? "knight" : "player"} moves at 6 m/s. What is the magnitude of their momentum?`,
+          question: `A 90 kg ${flavor.mover} moves at 6 m/s. What is the magnitude of their momentum?`,
           options: ["15 kg·m/s", "96 kg·m/s", "540 kg·m/s", "3,240 kg·m/s"],
           answer: 2,
           explanation:
@@ -170,7 +211,7 @@ export function readQuestLog(): QuestRecord[] {
               isRecord(record) &&
               typeof record.id === "string" &&
               typeof record.title === "string" &&
-              (record.theme === "sports" || record.theme === "fantasy") &&
+              isTheme(record.theme) &&
               typeof record.score === "number" &&
               typeof record.total === "number" &&
               typeof record.completedAt === "string" &&

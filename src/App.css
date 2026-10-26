@@ -26,6 +26,10 @@
 .theme-sports .world-background {
   background-image: url("/images/sports-world.png");
 }
+.theme-gossip .world-background {
+  background-image: url("/images/gossip-battle.svg");
+  background-position: center;
+}
 .theme-space .world-background {
   background-image: url("/images/space-world.png");
   background-position: center;
@@ -310,7 +314,7 @@
 .world-picker {
   width: min(100%, 1120px);
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 20px;
 }
 .world-card {
@@ -357,6 +361,12 @@
     linear-gradient(180deg, transparent 55%, #1d392b77),
     url("/images/fantasy-world.png");
   background-position: 65% 55%;
+}
+.art-gossip {
+  background-image:
+    linear-gradient(180deg, transparent 55%, #4d3b4277),
+    url("/images/gossip-battle.svg");
+  background-position: center 40%;
 }
 .art-space {
   background-image:
@@ -1022,6 +1032,12 @@
 .in-combat.theme-sports .world-background {
   background-image: url("/images/sports-battle.svg");
 }
+.in-combat.theme-gossip {
+  background: #c9d2b6;
+}
+.in-combat.theme-gossip .world-background {
+  background-image: url("/images/gossip-battle.svg");
+}
 .in-combat .world-wash {
   background: linear-gradient(180deg, #21433e66, #3456440a 45%, #23463840);
 }
@@ -1034,6 +1050,9 @@
   }
   .in-combat.theme-sports .world-background {
     background-image: url("/images/sports-battle-portrait.svg");
+  }
+  .in-combat.theme-gossip .world-background {
+    background-image: url("/images/gossip-battle.svg");
   }
 }
 .in-combat .brand {
@@ -1984,8 +2003,8 @@
 }
 @media (max-width: 1050px) {
   .world-picker {
-    width: min(100%, 760px);
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: min(100%, 860px);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
   .site-header {
     width: calc(100% - 44px);
@@ -2080,6 +2099,7 @@
   }
   .world-picker {
     gap: 14px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .world-card-art {
     height: 160px;

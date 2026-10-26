@@ -113,9 +113,12 @@ async function post(
 }
 // Shared with CoachVoice so the voice coach matches the game's analogies.
 export function interestFor(theme: Theme) {
-  return theme === "sports"
-    ? "American football"
-    : "fantasy adventures, knights, and dragons";
+  return {
+    sports: "American football",
+    fantasy: "fantasy adventures, knights, and dragons",
+    gossip:
+      "middle school gossip: hallway rumors, lunch-table drama, group chats, and friendship feuds (kind and school-appropriate, no real names or cruelty)",
+  }[theme];
 }
 
 export async function startAdaptiveGame(

@@ -4,7 +4,7 @@ import { PixelIcon } from "./PixelIcon";
 import { PixelSprite } from "./PixelSprite";
 import { ContentProgress } from "./ContentProgress";
 import { worlds } from "../lib/characters";
-import type { Theme } from "../lib/study";
+import { THEMES, type Theme } from "../lib/study";
 
 const upcomingWorlds = [
   {
@@ -57,7 +57,7 @@ export function WorldScreen({
         {context && <p>{context}</p>}
       </div>
       <div className="world-picker">
-        {(["sports", "fantasy"] as Theme[]).map((option) => (
+        {THEMES.map((option) => (
           <button
             className={`world-card ${!preview && theme === option ? "selected" : ""}`}
             key={option}
@@ -80,10 +80,7 @@ export function WorldScreen({
             </span>
             <span className="world-card-copy">
               <span className="world-card-title">
-                <PixelIcon
-                  name={option === "sports" ? "football" : "sword"}
-                  size={22}
-                />
+                <PixelIcon name={worlds[option].icon} size={22} />
                 {worlds[option].name}
               </span>
             </span>
@@ -304,10 +301,7 @@ export function MaterialsScreen({
           </div>
         )}
         <div className="material-summary">
-          <PixelIcon
-            name={theme === "fantasy" ? "sword" : "football"}
-            size={15}
-          />
+          <PixelIcon name={worlds[theme].icon} size={15} />
           <span>{worlds[theme].name} world</span>
           <span className="summary-separator">·</span>
           <PixelIcon name="person" size={15} />

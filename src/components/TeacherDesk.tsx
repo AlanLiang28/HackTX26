@@ -10,6 +10,8 @@ import { usePolling } from "../lib/usePolling";
 import { readStudyFile } from "../lib/material";
 import { PixelIcon } from "./PixelIcon";
 import { PixelSprite } from "./PixelSprite";
+import { worlds } from "../lib/characters";
+import { THEMES } from "../lib/study";
 import { ContentProgress } from "./ContentProgress";
 import { Notice } from "./CommunityScreens";
 
@@ -121,16 +123,13 @@ function TeacherDashboard({
               </div>
             </div>
             <div className="world-status" aria-label="Lesson preparation">
-              {(["sports", "fantasy"] as const).map((world) => (
+              {THEMES.map((world) => (
                 <span
                   key={world}
                   className={data.worldsReady.includes(world) ? "ready" : ""}
                 >
-                  <PixelIcon
-                    name={world === "sports" ? "football" : "sword"}
-                    size={14}
-                  />
-                  {world === "sports" ? "Sports" : "Fantasy"} ·{" "}
+                  <PixelIcon name={worlds[world].icon} size={14} />
+                  {worlds[world].name} ·{" "}
                   {data.worldsReady.includes(world)
                     ? "Ready"
                     : data.worldErrors?.[world]
@@ -139,11 +138,11 @@ function TeacherDashboard({
                 </span>
               ))}
             </div>
-            {(["sports", "fantasy"] as const).map(
+            {THEMES.map(
               (world) =>
                 data.worldErrors?.[world] && (
                   <Notice key={world}>
-                    {world === "sports" ? "Sports" : "Fantasy"} couldn't be
+                    {worlds[world].name} couldn't be
                     built: {data.worldErrors[world]} It will try again when a
                     student picks it.
                   </Notice>
@@ -182,11 +181,9 @@ function TeacherDashboard({
                     <div>
                       <h3>{person.name}</h3>
                       <p>
-                        {person.theme === "sports"
-                          ? "Sports"
-                          : person.theme === "fantasy"
-                            ? "Fantasy"
-                            : "No world yet"}
+                        {person.theme
+                          ? worlds[person.theme].name
+                          : "No world yet"}
                       </p>
                     </div>
                     <div className="row-metric">
@@ -219,7 +216,7 @@ function TeacherDashboard({
                     <div>
                       <h3>{group.members.join(" + ")}</h3>
                       <p>
-                        {group.theme === "sports" ? "Sports" : "Fantasy"} ·{" "}
+                        {worlds[group.theme].name} ·{" "}
                         {group.code}
                       </p>
                     </div>
@@ -627,7 +624,7 @@ export function TeacherDesk({ onBusy }: { onBusy: (busy: boolean) => void }) {
                 )}
               </div>
               <p className="field-help">
-                Students choose Sports or Fantasy. Both use this lesson.
+                Students choose Sports, Fantasy, or Gossip. Every world uses this lesson.
               </p>
             </>
           )}

@@ -50,6 +50,18 @@ const PERSONAS: Array<{ match: string[]; persona: string; voice: string; style: 
     voice: "Gacrux",
     style: "ancient, wise wizard: slow, warm and mysterious, with a twinkle of mischief and dramatic pauses",
   },
+  {
+    // The gossip world's interest starts with "middle school gossip" (interestFor in src/lib/adaptive.ts).
+    match: ["gossip", "middle school", "rumor", "drama"],
+    // A Gossip Girl-style narrator: the anonymous blogger who knows everyone's secrets, kept school-friendly.
+    persona:
+      "an anonymous, all-knowing gossip blogger narrating the scandals of the eighth-grade hallway, " +
+      "who opens with 'Spotted:' and signs off with 'You know you love me. XOXO'",
+    voice: "Despina",
+    style:
+      "smooth, sly voiceover narrator of a teen drama: knowing, conspiratorial and a little sultry, " +
+      "unhurried with a teasing smile, savoring every secret, never mean",
+  },
 ];
 
 function pickPersona(interest: string) {

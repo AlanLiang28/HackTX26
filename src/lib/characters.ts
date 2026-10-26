@@ -1,5 +1,6 @@
 import type { Mapping, StudySession, Theme } from "./study";
 import type { SpriteKind } from "../components/PixelSprite";
+import type { IconName } from "../components/PixelIcon";
 
 export type Character = {
   name: string;
@@ -10,8 +11,21 @@ export type Character = {
   incorrect: string;
 };
 
-export const worlds = {
+export const worlds: Record<
+  Theme,
+  {
+    name: string;
+    title: string;
+    description: string;
+    book: string;
+    location: string;
+    guide: string;
+    guideSprite: SpriteKind;
+    icon: IconName;
+  }
+> = {
   fantasy: {
+    icon: "sword",
     name: "Fantasy",
     title: "The Evergreen Kingdom",
     description:
@@ -19,16 +33,28 @@ export const worlds = {
     book: "Spellbook",
     location: "THE EVERGREEN KINGDOM",
     guide: "Wisp",
-    guideSprite: "mage" as SpriteKind,
+    guideSprite: "mage",
   },
   sports: {
+    icon: "football",
     name: "Sports",
     title: "The Home Field",
     description: "A rookie, a playbook, and a head coach who means business.",
     book: "Playbook",
     location: "THE HOME-FIELD STADIUM",
     guide: "Coach Dash",
-    guideSprite: "assistant" as SpriteKind,
+    guideSprite: "assistant",
+  },
+  gossip: {
+    icon: "chat",
+    name: "Gossip",
+    title: "Hallway C",
+    description:
+      "Rumors spread fast. Facts spread slower. Get the real story before the bell.",
+    book: "Diary",
+    location: "THE EIGHTH-GRADE HALLWAY",
+    guide: "Tess",
+    guideSprite: "gossip",
   },
 };
 
@@ -124,12 +150,61 @@ const sports: Character[] = [
   },
 ];
 
+const gossip: Character[] = [
+  {
+    name: "Tess",
+    role: "THE ONE WHO HEARS EVERYTHING",
+    sprite: "gossip",
+    introduction:
+      "Okay, oh my gosh, you will not believe what I just heard by the lockers. But before I spill, I need to know you actually get this part. No lying.",
+    correct:
+      "Stop. You're so right. I'm literally putting that in the group chat.",
+    incorrect:
+      "Wait, no, that's a total rumor. Let me give you the real story, then try again.",
+  },
+  {
+    name: "Hall Monitor Hank",
+    role: "KEEPER OF THE HALL PASS",
+    sprite: "monitor",
+    introduction:
+      "Hold it. Nobody gets past this water fountain without a pass. Lucky for you, the pass is understanding this. Let's see it.",
+    correct:
+      "That checks out. Pass approved. Walk, don't run.",
+    incorrect:
+      "That's a detention-level mix-up. Read the facts again, then come back to my desk.",
+  },
+  {
+    name: "Ziggy",
+    role: "THE NEW KID WITH A SECRET",
+    sprite: "newkid",
+    introduction:
+      "Hey. Everyone's been making up stuff about me since I transferred. I figure if we both know how this works, we'll be the only ones in the hallway telling the truth.",
+    correct:
+      "Yes! You're the first person here who didn't just guess. Want to sit with me at lunch?",
+    incorrect:
+      "Hm. That's what everyone else says too, but it's not true. Here's what's actually going on.",
+  },
+  {
+    name: "Principal Prim",
+    role: "KEEPER OF THE PERMANENT RECORD",
+    sprite: "principal",
+    introduction:
+      "Please, sit. I've heard a lot of stories this week. I'd like one that's actually true. Explain what you've learned, in your own words, with an example.",
+    correct:
+      "Now that is going on your permanent record. In a good way.",
+    incorrect:
+      "Something in your story doesn't add up. Check your notes and tell it to me again.",
+  },
+];
+
+const casts: Record<Theme, Character[]> = { fantasy, sports, gossip };
+
 export function getCharacter(
   theme: Theme,
   index: number,
   boss = false,
 ): Character {
-  const cast = theme === "fantasy" ? fantasy : sports;
+  const cast = casts[theme];
   return cast[boss ? 3 : index % 3];
 }
 

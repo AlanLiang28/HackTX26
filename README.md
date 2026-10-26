@@ -1,6 +1,6 @@
 # fairytails
 
-A pixel-art study adventure built with React, TypeScript, Vite, and Express. Study your own notes or join a classroom, learn through one of two fixed worlds (**Sports** and **Fantasy**), then explain the concepts with a small party.
+A pixel-art study adventure built with React, TypeScript, Vite, and Express. Study your own notes or join a classroom, learn through one of three fixed worlds (**Sports**, **Fantasy**, and **Gossip**, a middle-school hallway full of rumors), then explain the concepts with a small party.
 
 ## Run locally
 
@@ -31,7 +31,7 @@ For the new class, group, and boss tables, run `npx tsx setup-db.ts` against the
 
 The home screen has three entry points, all using the same paper panels, local pixel sprites, and minimal controls:
 
-1. **Bring my notes.** Choose Sports or Fantasy, add a name, then upload a PDF, TXT or Markdown file, or paste up to 20,000 characters. This starts an independent student through `/api/free-agents`. The world is also what matching uses; users cannot enter custom worlds.
+1. **Bring my notes.** Choose Sports, Fantasy, or Gossip, add a name, then upload a PDF, TXT or Markdown file, or paste up to 20,000 characters. This starts an independent student through `/api/free-agents`. The world is also what matching uses; users cannot enter custom worlds.
 2. **Join a class.** Enter the teacher's six-character code and a name. Choose a world and start the class lesson. Students share the class's cached world packs and do not need to supply notes.
 3. **Teacher desk.** Create a class in two steps: class details, then study material. Choose Upload to browse or drag in a PDF (up to 10 MB, read by Gemini through `/api/pdf-text`) or TXT/Markdown file (up to 1 MB); either way up to 20,000 characters, or choose Paste text. Switch to Paste text to review or edit uploaded material before creating the class. Save the private teacher key when it is first shown. The browser remembers classroom access; another device can open the dashboard with the class code and teacher key. The dashboard shows students, readiness, parties, and topics that need review.
 
