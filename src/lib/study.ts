@@ -189,11 +189,13 @@ export function isStudySession(value: unknown): value is StudySession {
         isRecord(item) &&
         typeof item.question === "string" &&
         Array.isArray(item.options) &&
-        item.options.length >= 2 &&
         item.options.every((option) => typeof option === "string") &&
         Number.isInteger(item.answer) &&
-        Number(item.answer) >= 0 &&
-        Number(item.answer) < item.options.length &&
+        // -1 is a live question the server hasn't graded yet; its slot may have no options so far.
+        (item.answer === -1 ||
+          (item.options.length >= 2 &&
+            Number(item.answer) >= 0 &&
+            Number(item.answer) < item.options.length)) &&
         (item.explanation === undefined ||
           typeof item.explanation === "string"),
     )

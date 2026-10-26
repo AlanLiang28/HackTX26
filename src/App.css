@@ -18,24 +18,24 @@
   z-index: -3;
 }
 .world-background {
-  background: #b3c9ab url("/images/fantasy-world.png") center 61% / cover
+  background: #b3c9ab url("/images/fantasy-world.webp") center 61% / cover
     no-repeat;
   image-rendering: pixelated;
   transition: opacity 0.4s;
 }
 .theme-sports .world-background {
-  background-image: url("/images/sports-world.png");
+  background-image: url("/images/sports-world.webp");
 }
 .theme-gossip .world-background {
   background-image: url("/images/gossip-battle.svg");
   background-position: center;
 }
 .theme-space .world-background {
-  background-image: url("/images/space-world.png");
+  background-image: url("/images/space-world.webp");
   background-position: center;
 }
 .theme-cooking .world-background {
-  background-image: url("/images/cooking-world.png");
+  background-image: url("/images/cooking-world.webp");
   background-position: center;
 }
 .world-wash {
@@ -353,13 +353,13 @@
 .art-sports {
   background-image:
     linear-gradient(180deg, transparent 55%, #1d392b77),
-    url("/images/sports-world.png");
+    url("/images/sports-world.webp");
   background-position: center 65%;
 }
 .art-fantasy {
   background-image:
     linear-gradient(180deg, transparent 55%, #1d392b77),
-    url("/images/fantasy-world.png");
+    url("/images/fantasy-world.webp");
   background-position: 65% 55%;
 }
 .art-gossip {
@@ -371,13 +371,13 @@
 .art-space {
   background-image:
     linear-gradient(180deg, transparent 55%, #16273f88),
-    url("/images/space-world.png");
+    url("/images/space-world.webp");
   background-position: center;
 }
 .art-cooking {
   background-image:
     linear-gradient(180deg, transparent 55%, #493b2777),
-    url("/images/cooking-world.png");
+    url("/images/cooking-world.webp");
   background-position: center;
 }
 .world-card-badge {

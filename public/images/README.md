@@ -6,7 +6,7 @@ Battle backgrounds are original hand-authored SVG pixel art, using a 320 × 180 
 
 ## Space preview background
 
-File: `space-world.png`
+File: `space-world.webp`
 
 Generated with the built-in ImageGen tool. Final prompt:
 
@@ -14,7 +14,7 @@ Use case: stylized-concept. Asset type: wide 16:9 world selection card backgroun
 
 ## Cooking preview background
 
-File: `cooking-world.png`
+File: `cooking-world.webp`
 
 Generated with the built-in ImageGen tool. Final prompt:
 
@@ -22,7 +22,7 @@ Use case: stylized-concept. Asset type: wide 16:9 world selection card backgroun
 
 ## Fantasy background
 
-File: `fantasy-world.png`
+File: `fantasy-world.webp`
 
 Final prompt:
 
@@ -30,7 +30,7 @@ Use case: stylized-concept. Asset type: full-viewport background for a polished 
 
 ## Sports background
 
-File: `sports-world.png`
+File: `sports-world.webp`
 
 Final prompt:
 

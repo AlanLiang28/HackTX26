@@ -53,6 +53,9 @@ export type GradedAnswer = {
   state: GameState;
 };
 
+// Solo games live in server memory, so a restart (or the 3-hour expiry) forgets them.
+export class GameExpiredError extends Error {}
+
 function record(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -102,7 +105,7 @@ async function post(
   });
   const data: unknown = await response.json().catch(() => null);
   if (!response.ok)
-    throw new Error(
+    throw new (response.status === 404 ? GameExpiredError : Error)(
       record(data) && typeof data.message === "string"
         ? data.message
         : record(data) && typeof data.error === "string"
